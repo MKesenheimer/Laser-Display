@@ -10,6 +10,13 @@
 #include <opencv2/opencv.hpp>
 #include <iostream>
 #include <string>
+#include <sstream>
+
+std::string intToStr(int a) {
+  std::stringstream ss;
+  ss << a;
+  return ss.str();
+}
 
 int main()
 {
@@ -36,8 +43,10 @@ int main()
   cv::bitwise_and(img, edges, edges);
 
   // build text for displaying values
-  //std::string str = "Upper threshold = " + std::i;
-  //cv::putText(edges, str, cv::Point(50, 50), cv::FONT_HERSHEY_DUPLEX, 1, cv::Scalar(0, 255, 0), 1, false);
+  std::string str = "Upper threshold = " + intToStr(upperThreshold);
+  cv::putText(edges, str, cv::Point(50, 50), cv::FONT_HERSHEY_DUPLEX, 1, cv::Scalar(0, 255, 0), 1, false);
+  str = "Lower threshold = " + intToStr(lowerThreshold);
+  cv::putText(edges, str, cv::Point(50, 100), cv::FONT_HERSHEY_DUPLEX, 1, cv::Scalar(0, 255, 0), 1, false);  
 
   // Display canny edge detected image
   cv::imshow("Canny edge detection", edges);
