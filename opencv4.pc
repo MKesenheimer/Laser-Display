@@ -1,0 +1,13 @@
+# Package Information for pkg-config
+
+prefix=/opt/local/libexec/opencv4
+exec_prefix=${prefix}
+libdir=${exec_prefix}//opt/local/lib/opencv4
+includedir=${prefix}//opt/local/include/opencv4
+
+Name: OpenCV
+Description: Open Source Computer Vision Library
+Version: 4.5.5
+Libs: -L${exec_prefix}//opt/local/lib/opencv4 -lopencv_gapi.4.5.5 -lopencv_highgui.4.5.5 -lopencv_ml.4.5.5 -lopencv_photo.4.5.5 -lopencv_stitching.4.5.5 -lopencv_video.4.5.5 -lopencv_calib3d.4.5.5 -lopencv_features2d.4.5.5 -lopencv_flann.4.5.5 -lopencv_videoio.4.5.5 -lopencv_imgcodecs.4.5.5 -lopencv_imgproc.4.5.5 -lopencv_core.4.5.5
+Libs.private: 
+Cflags: -I${includedir}
