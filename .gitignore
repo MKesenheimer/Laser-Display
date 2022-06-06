@@ -1,2 +1,5 @@
 .DS_Store
 laser-display
+build
+liblumax.so
+noname.cpp

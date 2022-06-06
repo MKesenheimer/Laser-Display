@@ -1,3 +1,6 @@
 [submodule "GameLibrary"]
 	path = GameLibrary
 	url = git@github.com:MKesenheimer/GameLibrary.git
+[submodule "SDLTools"]
+	path = SDLTools
+	url = git@github.com:MKesenheimer/SDLTools.git
