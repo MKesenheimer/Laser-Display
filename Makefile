@@ -70,7 +70,7 @@ FRM = -framework Cocoa
 ## Linker files
 
 ### USER Files ###
-USER = Main.a
+USER = Main.a Renderer.a Object.a
 
 ########################################################################
 ## Rules

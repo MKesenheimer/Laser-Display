@@ -49,9 +49,12 @@ int main() {
         return -1;
     }
 
+    // set the screen dimensions -> sets the global variabls g_screen_width and g_screen_height
+    Renderer::setDimensions(960, 540);
+
     // Set up our window and renderer, this time let's put our window in the center of the screen
     SDL_Window *window = SDL_CreateWindow("Laser-Display", SDL_WINDOWPOS_CENTERED,
-            SDL_WINDOWPOS_CENTERED, SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_SHOWN);
+            SDL_WINDOWPOS_CENTERED, g_screen_width, g_screen_height, SDL_WINDOW_SHOWN);
     if (window == NULL){
         sdl::auxiliary::Utilities::logSDLError(std::cout, "CreateWindow");
         SDL_Quit();
