@@ -6,8 +6,8 @@ COMPILER = g++
 
 ########################################################################
 ## Flags
-#FLAGS   = -g -std=c++17 -D LUMAX_OUTPUT
-FLAGS   = -g -std=c++17
+FLAGS   = -g -std=c++17 -D LUMAX_OUTPUT
+#FLAGS   = -g -std=c++17
 LDFLAGS = 
 PREPRO  =
 ##verbose level 1
@@ -44,7 +44,7 @@ INCLUDE = $(wildcard *.h $(UINCLUDE)/*.h)
 ########################################################################
 ## SDL
 CXX += $(shell sdl2-config --cflags)
-LDFLAGS += $(shell sdl2-config --static-libs) -lSDL2_gfx -lSDL2_image 
+LDFLAGS += $(shell sdl2-config --static-libs) -lSDL2_gfx -lSDL2_image -lSDL2_ttf
 
 ########################################################################
 ## OpenCV

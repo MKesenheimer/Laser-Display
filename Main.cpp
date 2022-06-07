@@ -8,16 +8,20 @@
 
 
 #include <opencv2/opencv.hpp>
+#include <opencv2/imgproc.hpp>
 #include <iostream>
 #include <string>
 #include <sstream>
 #include <stdio.h>
+#include <vector>
 
 #include <SDL.h>
-#include <SDL_image.h>
+#include <SDL_ttf.h>
 #include "SDLTools/Utilities.h"
 #include "SDLTools/Timer.h"
 #include "GameLibrary/Renderer.h"
+
+#include <chrono>
 
 const int FRAMES_PER_SECOND = 20; // Fps auf 20 festlegen
 const std::string image("test.jpg");
@@ -26,6 +30,11 @@ std::string intToStr(int a) {
     std::stringstream ss;
     ss << a;
     return ss.str();
+}
+
+template<typename T> 
+T constrain(T value, T min, T max) {
+    return std::min(std::max(value, min), max);
 }
 
 int main() {
@@ -43,6 +52,12 @@ int main() {
     // initialize random generator
     sdl::auxiliary::Utilities::seed(time(NULL));
 
+    // Initialize SDL_ttf
+    if (TTF_Init() != 0) {
+        sdl::auxiliary::Utilities::logSDLError(std::cout, "TTF_Init");
+        return -1;
+    }
+
     //Start up SDL and make sure it went ok
     if (SDL_Init(SDL_INIT_VIDEO) != 0){
         sdl::auxiliary::Utilities::logSDLError(std::cout, "SDL_Init");
@@ -55,15 +70,15 @@ int main() {
     // Set up our window and renderer, this time let's put our window in the center of the screen
     SDL_Window *window = SDL_CreateWindow("Laser-Display", SDL_WINDOWPOS_CENTERED,
             SDL_WINDOWPOS_CENTERED, Renderer::screen_width, Renderer::screen_height, SDL_WINDOW_SHOWN);
-    if (window == NULL){
-        sdl::auxiliary::Utilities::logSDLError(std::cout, "CreateWindow");
+    if (window == NULL) {
+        sdl::auxiliary::Utilities::logSDLError(std::cout, "SDL_CreateWindow");
         SDL_Quit();
         return -1;
     }
 
     SDL_Renderer *renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
-    if (renderer == NULL){
-        sdl::auxiliary::Utilities::logSDLError(std::cout, "CreateRenderer");
+    if (renderer == NULL) {
+        sdl::auxiliary::Utilities::logSDLError(std::cout, "SD_CreateRenderer");
         sdl::auxiliary::Utilities::cleanup(window);
         SDL_Quit();
         return -1;
@@ -72,12 +87,22 @@ int main() {
     // read image for the first time to get its dimensions
     cv::Mat img = cv::imread(image);
     SDL_Texture* texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_BGR24, SDL_TEXTUREACCESS_STREAMING, img.cols, img.rows);
-    if (renderer == NULL){
-        sdl::auxiliary::Utilities::logSDLError(std::cout, "CreateTexture");
+    if (renderer == NULL) {
+        sdl::auxiliary::Utilities::logSDLError(std::cout, "SDL_CreateTexture");
         sdl::auxiliary::Utilities::cleanup(window, renderer);
         SDL_Quit();
         return -1;
     }
+
+    // setup text rendering
+    TTF_Font* font = TTF_OpenFont("lazy.ttf", 16);
+    if (font == NULL) {
+        sdl::auxiliary::Utilities::logSDLError(std::cout, "TTF_OpenFont");
+        sdl::auxiliary::Utilities::cleanup(window, renderer, texture);
+        SDL_Quit();
+        return -1;
+    }
+    SDL_Color textColor = {0, 255, 0};
 
 #ifdef LUMAX_OUTPUT
     // open Lumax device
@@ -90,9 +115,7 @@ int main() {
         printf("Lumax_OpenDevice returned handle: 0x%lx\n", (unsigned long)lumaxHandle);
         if (lumaxHandle == NULL){
             sdl::auxiliary::Utilities::logSDLError(std::cout, "Lumax_OpenDevice");
-#if 0
-            sdl::auxiliary::Utilities::cleanup(window, renderer);
-#endif
+            sdl::auxiliary::Utilities::cleanup(window, renderer, texture);
             SDL_Quit();
             return 1;
         }
@@ -102,8 +125,8 @@ int main() {
     lumaxRenderer.mirrorFactX = -1;
     lumaxRenderer.mirrorFactY = 1;
     // scaling of the laser output in respect to the SDL screen
-    lumaxRenderer.scalingX = 0.3;
-    lumaxRenderer.scalingY = 0.3;
+    lumaxRenderer.scalingX = 0.1;
+    lumaxRenderer.scalingY = 0.1;
 #endif
 
     // logic
@@ -114,6 +137,12 @@ int main() {
     int upperThreshold = 300;
     int lowerThreshold = 100;
     int blursize = 5;
+    int rResolution = 1;
+    float thetaResolution = CV_PI / 180;
+    int interThreshold = 40;
+    int minLineLength = 90; // 90
+    int maxLineGap = 10; // 4
+    int lightThreshold = 50;
 
     // the event structure
     SDL_Event e;
@@ -136,6 +165,24 @@ int main() {
 
         // handle keyboard inputs (no lags and delays!)
         const uint8_t* keystate = SDL_GetKeyboardState(NULL);
+        if (keystate[SDL_SCANCODE_R]) {
+            interThreshold++;
+        }
+        if (keystate[SDL_SCANCODE_F]) {
+            interThreshold = (interThreshold >= 1 ? interThreshold - 1 : interThreshold);
+        }
+        if (keystate[SDL_SCANCODE_T]) {
+            minLineLength++;
+        }
+        if (keystate[SDL_SCANCODE_G]) {
+            minLineLength = (minLineLength >= 1 ? minLineLength - 1 : minLineLength);   
+        }
+        if (keystate[SDL_SCANCODE_Y]) {
+            maxLineGap++;
+        }
+        if (keystate[SDL_SCANCODE_H]) {
+            maxLineGap = (maxLineGap >= 1 ? maxLineGap - 1 : maxLineGap);
+        }
         if (keystate[SDL_SCANCODE_U]) {
             blursize += 2;
         }
@@ -146,17 +193,16 @@ int main() {
             upperThreshold++;
         }
         if (keystate[SDL_SCANCODE_K]) {
-            upperThreshold--;
+            upperThreshold = (upperThreshold >= 1 ? upperThreshold - 1 : upperThreshold);
         }
         if (keystate[SDL_SCANCODE_O]) {
             lowerThreshold++;
         }
         if (keystate[SDL_SCANCODE_L]) {
-            lowerThreshold--;
+            lowerThreshold = (lowerThreshold >= 1 ? lowerThreshold - 1 : lowerThreshold);
         }
         
         
-
         // Reading image
         cv::Mat img = cv::imread(image);
 
@@ -171,32 +217,94 @@ int main() {
         cv::Mat edges;
         cv::Canny(img_blur, edges, lowerThreshold, upperThreshold, 3, false);
         // convert back to RGB image
-        cv::cvtColor(edges, edges, cv::COLOR_GRAY2RGB);
-        // use edges as mask and multiply original image with mask
         cv::Mat dst;
-        cv::bitwise_and(img, edges, edges);
+        cv::cvtColor(edges, dst, cv::COLOR_GRAY2RGB);
+        cv::Mat lines = dst.clone(); //cv::Mat::zeros(dst.rows, dst.cols, CV_64F);
+        lines.setTo(cv::Scalar(0, 0, 0));
+
+        // Standard Hough Line Transform
+        std::vector<cv::Vec4i> houghLines; // HoughLinesP: will hold the results of the detection
+        HoughLinesP(edges, houghLines, rResolution, thetaResolution, interThreshold, minLineLength, maxLineGap); // runs the actual detection
+        // Draw the lines
+        for(size_t i = 0; i < houghLines.size(); i++) {
+            cv::Vec4i l = houghLines[i];
+            cv::line(lines, cv::Point(l[0], l[1]), cv::Point(l[2], l[3]), cv::Scalar(255, 255, 255), 1, cv::LINE_AA);
+        }
+        std::cout << "Generated " << houghLines.size() << " lines. " << std::endl;
+
+        // use lines as mask and multiply original image with mask
+        cv::bitwise_and(img, lines, dst);
+
+        // Draw the background black
+        SDL_RenderClear(renderer);        
+        boxRGBA(renderer, 0, 0, Renderer::screen_width, Renderer::screen_height, 0, 0, 0, 255);
+
+        // render the image
+        //SDL_UpdateTexture(texture, NULL, (void*)dst.data, dst.step1());
+        //SDL_RenderCopy(renderer, texture, NULL, NULL);
+
+        // apply the lines to the renderers
+        auto start_time = std::chrono::high_resolution_clock::now();
+        std::vector<Point> points;
+        points.reserve(15000); // TODO
+        
+        for(size_t i = 0; i < houghLines.size(); ++i) {
+            cv::Vec4i l = houghLines[i];
+            cv::Vec3b intensity1 = dst.at<cv::Vec3b>(cv::Point(constrain<int>(l[0], 0, dst.cols - 1), constrain<int>(l[1], 0, dst.rows - 1)));
+            cv::Vec3b intensity2 = dst.at<cv::Vec3b>(cv::Point(constrain<int>(l[2], 0, dst.cols - 1), constrain<int>(l[3], 0, dst.rows - 1)));
+            int blue  = constrain<int>((intensity1.val[0] + intensity2.val[0]) / 2, 0, 255);
+            int green = constrain<int>((intensity1.val[1] + intensity2.val[1]) / 2, 0, 255);
+            int red   = constrain<int>((intensity1.val[2] + intensity2.val[2]) / 2, 0, 255);
+            if ((blue + green + red) >= lightThreshold) {
+                // Points for Laser output
+                points.push_back({(float)l[0], (float)l[1], 0, 0, 0, 255, false});
+                points.push_back({(float)l[0], (float)l[1], blue, green, red, 255, false});
+                points.push_back({(float)l[2], (float)l[3], blue, green, red, 255, false});
+                points.push_back({(float)l[2], (float)l[3], 0, 0, 0, 255, false});
+                // Points for SDL output
+                l[0] = Renderer::transform(l[0], 0, img.cols, 0, Renderer::screen_width);
+                l[1] = Renderer::transform(l[1], 0, img.rows, 0, Renderer::screen_height);
+                l[2] = Renderer::transform(l[2], 0, img.cols, 0, Renderer::screen_width);
+                l[3] = Renderer::transform(l[3], 0, img.rows, 0, Renderer::screen_height);
+                lineRGBA(renderer, (int)l[2], (int)l[3], (int)l[0], (int)l[1], red, green, blue, 255);
+            }
+        }
+
+        auto end_time = std::chrono::high_resolution_clock::now();
+        auto time = end_time - start_time;
+        std::cout << "Generated " << points.size() << " points. ";
+        std::cout << "Took " << time/std::chrono::milliseconds(1) << "ms to run.\n";
+
+#ifdef LUMAX_OUTPUT
+        Renderer::drawPoints(points, lumaxRenderer);
+        Renderer::sendPointsToLumax(lumaxHandle, lumaxRenderer, 3000);
+#endif
+
 
         // build text for displaying values
-        std::string str = "Upper threshold = " + intToStr(upperThreshold);
-        cv::putText(edges, str, cv::Point(50, 50), cv::FONT_HERSHEY_DUPLEX, 1, cv::Scalar(0, 255, 0), 1, false);
+        std::string str = "FPS: " +  intToStr(1000.0f * frame / worldtime.getTicks());
+        sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 25);
+        str = "Upper threshold = " + intToStr(upperThreshold);
+        sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 50);
         str = "Lower threshold = " + intToStr(lowerThreshold);
-        cv::putText(edges, str, cv::Point(50, 100), cv::FONT_HERSHEY_DUPLEX, 1, cv::Scalar(0, 255, 0), 1, false);
+        sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 75);
         str = "Blur = " + intToStr(blursize);
-        cv::putText(edges, str, cv::Point(50, 150), cv::FONT_HERSHEY_DUPLEX, 1, cv::Scalar(0, 255, 0), 1, false);
-        // update the window caption
-        str = "FPS: " +  intToStr(1000.0f * frame / worldtime.getTicks());
-        cv::putText(edges, str, cv::Point(50, 200), cv::FONT_HERSHEY_DUPLEX, 1, cv::Scalar(0, 255, 0), 1, false);
+        sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 100);
+        str = "Intersection threshold = " + intToStr(interThreshold);
+        sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 125);
+        str = "Min line length = " + intToStr(minLineLength);
+        sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 150);
+        str = "Max line gap = " + intToStr(maxLineGap);
+        sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 175);
+
+       // FPS
         if (worldtime.getTicks() > 1000 ) {
             worldtime.start();
             frame = 0;
         }
+        
 
-        // copy the image to an SDL texture
-        SDL_UpdateTexture(texture, NULL, (void*)edges.data, edges.step1());
-
-        // render the texture
-        SDL_RenderClear(renderer);
-        SDL_RenderCopy(renderer, texture, NULL, NULL);
+        // apply the renderer to the screen
         SDL_RenderPresent(renderer);
 
         // increment the frame number
@@ -206,8 +314,6 @@ int main() {
             SDL_Delay((1000 / FRAMES_PER_SECOND) - fps.getTicks() );
         }
     }
-    
-    
 
 #ifdef LUMAX_OUTPUT
     Lumax_StopFrame(lumaxHandle);
@@ -215,7 +321,7 @@ int main() {
 
     // Destroy the various items
     sdl::auxiliary::Utilities::cleanup(renderer, window, texture);
-    IMG_Quit();
+	TTF_CloseFont(font);
     SDL_Quit();
 
     return 0;
