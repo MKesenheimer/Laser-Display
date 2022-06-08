@@ -20,21 +20,60 @@
 #include "SDLTools/Utilities.h"
 #include "SDLTools/Timer.h"
 #include "GameLibrary/Renderer.h"
+#include "GameLibrary/Algorithms.h"
 
 #include <chrono>
 
 const int FRAMES_PER_SECOND = 20; // Fps auf 20 festlegen
-const std::string image("test.jpg");
+const std::string image("test3.png");
 
+// TODO: nach Utilities oder GameLibrary verschieben
 std::string intToStr(int a) {
     std::stringstream ss;
     ss << a;
     return ss.str();
 }
 
+// TODO: nach Utilities oder GameLibrary verschieben
 template<typename T> 
 T constrain(T value, T min, T max) {
     return std::min(std::max(value, min), max);
+}
+
+// calculate the distance of all combinations of two lines (= 4 points)
+// delta[0] = distance(p[0], q[0])
+// delta[1] = distance(p[0], q[1])
+// delta[2] = distance(p[1], q[0])
+// delta[3] = distance(p[1], q[1])
+std::array<int, 4> distanceSquare4i(cv::Vec4i p, cv::Vec4i q) {
+    int k = 0;
+    std::array<int, 4> delta;
+    for (int i = 0; i < 4; i+=2) {
+       for (int j = 0; j < 4; j+=2) {
+           int deltaX = p[i] - q[j];
+           int deltaY = p[i + 1] - q[j + 1];
+           delta[k] = deltaX * deltaX + deltaY * deltaY;
+           k++;
+       } 
+    }
+    return delta;
+}
+
+void sortLines(std::vector<cv::Vec4i>& houghLines) {
+    int x0 = Renderer::screen_width / 2;
+    int y0 = Renderer::screen_height / 2;
+    std::vector<cv::Vec4i> houghLinesSorted;
+    houghLinesSorted.reserve(houghLines.size());
+
+    // Test
+    /*cv::Vec4i p = {1, 2, 3, 4};
+    cv::Vec4i q = {5, 6, 7, 8};
+    std::array<int, 4> d = distanceSquare4i(p, q);
+    std::cout << d[0] << ", " << d[1] << ", " << d[2] << ", " << d[3] << std::endl;*/
+
+    for(size_t i = 0; i < houghLines.size(); ++i) {
+
+    }
 }
 
 int main() {
@@ -125,8 +164,9 @@ int main() {
     lumaxRenderer.mirrorFactX = -1;
     lumaxRenderer.mirrorFactY = 1;
     // scaling of the laser output in respect to the SDL screen
-    lumaxRenderer.scalingX = 0.1;
-    lumaxRenderer.scalingY = 0.1;
+    lumaxRenderer.scalingX = 0.5;
+    lumaxRenderer.scalingY = 0.5;
+    lumaxRenderer.swapXY = 0;
 #endif
 
     // logic
@@ -134,15 +174,23 @@ int main() {
     bool reset = false;
 
     // opencv specific
-    int upperThreshold = 300;
-    int lowerThreshold = 100;
+    /*int lightThreshold = 0;
+    int interThreshold = 40;
+    int minLineLength = 90;
+    int maxLineGap = 10;
     int blursize = 5;
+    int upperThreshold = 300;
+    int lowerThreshold = 100;*/
     int rResolution = 1;
     float thetaResolution = CV_PI / 180;
-    int interThreshold = 40;
-    int minLineLength = 90; // 90
-    int maxLineGap = 10; // 4
-    int lightThreshold = 50;
+
+    int lightThreshold = 0;
+    int interThreshold = 10;
+    int minLineLength = 0;
+    int maxLineGap = 10;
+    int blursize = 11;
+    int upperThreshold = 100;
+    int lowerThreshold = 200;
 
     // the event structure
     SDL_Event e;
@@ -165,6 +213,12 @@ int main() {
 
         // handle keyboard inputs (no lags and delays!)
         const uint8_t* keystate = SDL_GetKeyboardState(NULL);
+        if (keystate[SDL_SCANCODE_E]) {
+            lightThreshold++;
+        }
+        if (keystate[SDL_SCANCODE_D]) {
+            lightThreshold = (lightThreshold >= 1 ? lightThreshold - 1 : lightThreshold);
+        }
         if (keystate[SDL_SCANCODE_R]) {
             interThreshold++;
         }
@@ -202,7 +256,10 @@ int main() {
             lowerThreshold = (lowerThreshold >= 1 ? lowerThreshold - 1 : lowerThreshold);
         }
         
-        
+        // measure time
+        auto start_time = std::chrono::high_resolution_clock::now();
+        std::vector<Point> points;
+
         // Reading image
         cv::Mat img = cv::imread(image);
 
@@ -225,29 +282,28 @@ int main() {
         // Standard Hough Line Transform
         std::vector<cv::Vec4i> houghLines; // HoughLinesP: will hold the results of the detection
         HoughLinesP(edges, houghLines, rResolution, thetaResolution, interThreshold, minLineLength, maxLineGap); // runs the actual detection
+
+        // sort the lines (TSP problem)
+        sortLines(houghLines);
+
         // Draw the lines
-        for(size_t i = 0; i < houghLines.size(); i++) {
+        for(size_t i = 0; i < houghLines.size(); ++i) {
             cv::Vec4i l = houghLines[i];
             cv::line(lines, cv::Point(l[0], l[1]), cv::Point(l[2], l[3]), cv::Scalar(255, 255, 255), 1, cv::LINE_AA);
         }
-        std::cout << "Generated " << houghLines.size() << " lines. " << std::endl;
-
         // use lines as mask and multiply original image with mask
         cv::bitwise_and(img, lines, dst);
 
         // Draw the background black
         SDL_RenderClear(renderer);        
-        boxRGBA(renderer, 0, 0, Renderer::screen_width, Renderer::screen_height, 0, 0, 0, 255);
+        boxRGBA(renderer, 0, 0, Renderer::screen_width, Renderer::screen_height, 10, 10, 10, 255);
 
         // render the image
         //SDL_UpdateTexture(texture, NULL, (void*)dst.data, dst.step1());
         //SDL_RenderCopy(renderer, texture, NULL, NULL);
 
         // apply the lines to the renderers
-        auto start_time = std::chrono::high_resolution_clock::now();
-        std::vector<Point> points;
         points.reserve(15000); // TODO
-        
         for(size_t i = 0; i < houghLines.size(); ++i) {
             cv::Vec4i l = houghLines[i];
             cv::Vec3b intensity1 = dst.at<cv::Vec3b>(cv::Point(constrain<int>(l[0], 0, dst.cols - 1), constrain<int>(l[1], 0, dst.rows - 1)));
@@ -270,32 +326,35 @@ int main() {
             }
         }
 
-        auto end_time = std::chrono::high_resolution_clock::now();
-        auto time = end_time - start_time;
-        std::cout << "Generated " << points.size() << " points. ";
-        std::cout << "Took " << time/std::chrono::milliseconds(1) << "ms to run.\n";
-
 #ifdef LUMAX_OUTPUT
         Renderer::drawPoints(points, lumaxRenderer);
         Renderer::sendPointsToLumax(lumaxHandle, lumaxRenderer, 3000);
 #endif
 
+        // measure time
+        auto end_time = std::chrono::high_resolution_clock::now();
+        auto time = end_time - start_time;
+        std::cout << "Extracted " << houghLines.size() << " lines and ";
+        std::cout << "generated " << points.size() << " points. ";
+        std::cout << "Took " << time/std::chrono::milliseconds(1) << "ms to run.\n";
 
         // build text for displaying values
         std::string str = "FPS: " +  intToStr(1000.0f * frame / worldtime.getTicks());
         sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 25);
-        str = "Upper threshold = " + intToStr(upperThreshold);
+        str = "(e+, d-): Light threshold = " + intToStr(lightThreshold);
         sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 50);
-        str = "Lower threshold = " + intToStr(lowerThreshold);
+        str = "(r+, f-): Intersection threshold = " + intToStr(interThreshold);
         sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 75);
-        str = "Blur = " + intToStr(blursize);
+        str = "(t+, g-): Min line length = " + intToStr(minLineLength);
         sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 100);
-        str = "Intersection threshold = " + intToStr(interThreshold);
+        str = "(z+, h-): Max line gap = " + intToStr(maxLineGap);
         sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 125);
-        str = "Min line length = " + intToStr(minLineLength);
+        str = "(u+, j-): Blur = " + intToStr(blursize);
         sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 150);
-        str = "Max line gap = " + intToStr(maxLineGap);
+        str = "(i+, k-): Upper threshold = " + intToStr(upperThreshold);
         sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 175);
+        str = "(o+, l-): Lower threshold = " + intToStr(lowerThreshold);
+        sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 200);
 
        // FPS
         if (worldtime.getTicks() > 1000 ) {
