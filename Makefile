@@ -70,7 +70,10 @@ FRM = -framework Cocoa
 ## Linker files
 
 ### USER Files ###
-USER = Main.a Renderer.a Object.a Algorithms.a
+USER = Main.a Renderer.a Algorithms.a
+### TODO: not necessary, remove!
+USER += Collision.a Object.a Solver.a UnitTests.a
+
 
 ########################################################################
 ## Rules

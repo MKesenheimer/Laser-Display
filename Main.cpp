@@ -13,16 +13,21 @@
 #include <string>
 #include <sstream>
 #include <stdio.h>
+#include <chrono>
+
 #include <vector>
+#include <tuple>
+#include <array>
 
 #include <SDL.h>
 #include <SDL_ttf.h>
 #include "SDLTools/Utilities.h"
 #include "SDLTools/Timer.h"
+#include "GameLibrary/Point.h"
 #include "GameLibrary/Renderer.h"
 #include "GameLibrary/Algorithms.h"
+#include "GameLibrary/UnitTests.h"
 
-#include <chrono>
 
 const int FRAMES_PER_SECOND = 20; // Fps auf 20 festlegen
 const std::string image("test3.png");
@@ -40,39 +45,30 @@ T constrain(T value, T min, T max) {
     return std::min(std::max(value, min), max);
 }
 
-// calculate the distance of all combinations of two lines (= 4 points)
-// delta[0] = distance(p[0], q[0])
-// delta[1] = distance(p[0], q[1])
-// delta[2] = distance(p[1], q[0])
-// delta[3] = distance(p[1], q[1])
-std::array<int, 4> distanceSquare4i(cv::Vec4i p, cv::Vec4i q) {
-    int k = 0;
-    std::array<int, 4> delta;
-    for (int i = 0; i < 4; i+=2) {
-       for (int j = 0; j < 4; j+=2) {
-           int deltaX = p[i] - q[j];
-           int deltaY = p[i + 1] - q[j + 1];
-           delta[k] = deltaX * deltaX + deltaY * deltaY;
-           k++;
-       } 
-    }
-    return delta;
+void swapPoints(cv::Vec4i& p) {
+    int x = p[0];
+    int y = p[1];
+    p[0] = p[2];
+    p[1] = p[3];
+    p[2] = x;
+    p[3] = y;
 }
 
+// TODO: nach Utilities oder GameLibrary verschieben
 void sortLines(std::vector<cv::Vec4i>& houghLines) {
-    int x0 = Renderer::screen_width / 2;
-    int y0 = Renderer::screen_height / 2;
+    //int x0 = Renderer::screen_width / 2;
+    //int y0 = Renderer::screen_height / 2;
     std::vector<cv::Vec4i> houghLinesSorted;
     houghLinesSorted.reserve(houghLines.size());
-
-    // Test
-    /*cv::Vec4i p = {1, 2, 3, 4};
-    cv::Vec4i q = {5, 6, 7, 8};
-    std::array<int, 4> d = distanceSquare4i(p, q);
-    std::cout << d[0] << ", " << d[1] << ", " << d[2] << ", " << d[3] << std::endl;*/
-
+    
     for(size_t i = 0; i < houghLines.size(); ++i) {
-
+        for(size_t j = i + 1; j < houghLines.size(); ++j) {
+            Line<int>* line1 = reinterpret_cast<Line<int>*>(houghLines[i].val);
+            Line<int>* line2 = reinterpret_cast<Line<int>*>(houghLines[j].val);
+            auto minD = Algorithms::minimalLineDistance((*line1), (*line2));
+            //std::cout << std::get<0>(minD) << std::endl;
+            
+        }
     }
 }
 
@@ -258,7 +254,7 @@ int main() {
         
         // measure time
         auto start_time = std::chrono::high_resolution_clock::now();
-        std::vector<Point> points;
+        std::vector<Point<float>> points;
 
         // Reading image
         cv::Mat img = cv::imread(image);

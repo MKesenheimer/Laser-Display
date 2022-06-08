@@ -3,3 +3,4 @@ laser-display
 build
 liblumax.so
 noname.cpp
+.vscode
