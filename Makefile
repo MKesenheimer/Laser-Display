@@ -31,7 +31,7 @@ PARENTDIR  = $(WORKINGDIR)/..
 ########################################################################
 ## search for the files and set paths
 
-vpath %.cpp $(WORKINGDIR) $(WORKINGDIR)/GameLibrary
+vpath %.cpp $(WORKINGDIR) $(WORKINGDIR)/GameLibrary $(WORKINGDIR)/unittests
 vpath %.m $(WORKINGDIR)
 vpath %.a $(WORKINGDIR)/build
 vpath %.o $(WORKINGDIR)/build
@@ -60,7 +60,7 @@ LDFLAGS += $(shell pkg-config --libs opencv4)
 	$(CXX) -c -o build/$@ $<
 
 # Libraries
-LIB = -L./GameLibrary -llumax
+LIB = -L./GameLibrary -L./unittests -llumax
 
 # Frameworks
 # -framework SDL_gfx 

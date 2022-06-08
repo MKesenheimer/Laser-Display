@@ -26,7 +26,7 @@
 #include "GameLibrary/Point.h"
 #include "GameLibrary/Renderer.h"
 #include "GameLibrary/Algorithms.h"
-#include "GameLibrary/UnitTests.h"
+#include "unittests/UnitTests.h"
 
 
 const int FRAMES_PER_SECOND = 20; // Fps auf 20 festlegen
@@ -56,20 +56,9 @@ void swapPoints(cv::Vec4i& p) {
 
 // TODO: nach Utilities oder GameLibrary verschieben
 void sortLines(std::vector<cv::Vec4i>& houghLines) {
-    //int x0 = Renderer::screen_width / 2;
-    //int y0 = Renderer::screen_height / 2;
-    std::vector<cv::Vec4i> houghLinesSorted;
-    houghLinesSorted.reserve(houghLines.size());
-    
-    for(size_t i = 0; i < houghLines.size(); ++i) {
-        for(size_t j = i + 1; j < houghLines.size(); ++j) {
-            Line<int>* line1 = reinterpret_cast<Line<int>*>(houghLines[i].val);
-            Line<int>* line2 = reinterpret_cast<Line<int>*>(houghLines[j].val);
-            auto minD = Algorithms::minimalLineDistance((*line1), (*line2));
-            //std::cout << std::get<0>(minD) << std::endl;
-            
-        }
-    }
+    //unittests::testMinimalPointLineDistance();
+    //unittests::testMinimalPointLinePoint();
+    unittests::testSortLines();
 }
 
 int main() {
