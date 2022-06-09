@@ -3,6 +3,7 @@
 #include <iostream>
 #include <opencv2/opencv.hpp>
 #include <opencv2/imgproc.hpp>
+#include "ocv-auxiliary.h"
 
 // TODO: use google unittests
 namespace unittests {
@@ -93,41 +94,12 @@ namespace unittests {
           (4, 3, 5, 4)
           (4, 4, 3, 4)*/
     
-        houghLines.push_back({3, 2, 4, 2});
-        houghLines.push_back({1, 1, 2, 2});
+        houghLines.push_back({4, 2, 3, 2});
         houghLines.push_back({3, 4, 4, 4});
-        houghLines.push_back({4, 3, 5, 4});
+        houghLines.push_back({1, 1, 2, 2});
+        houghLines.push_back({5, 4, 4, 3});
 
-        for (size_t k = 0; k < houghLines.size() - 1; ++k) {
-            Line<int>* line0 = reinterpret_cast<Line<int>*>(houghLines[k].val);
-            const XYPoint<int>& point0 = (*line0)[0];
-            const XYPoint<int>& point1 = (*line0)[1];
-            std::cout << "step 0: start line = (" << point0.first << ", " << point0.second << ", " << point1.first << ", " << point1.second << ")" << std::endl;
-
-            // find closest line
-            std::vector<cv::Vec4i>::iterator closest = std::min_element(houghLines.begin() + k + 1, houghLines.end(),
-                [point1](cv::Vec4i& a, cv::Vec4i& b) {
-                    Line<int>* lineA = reinterpret_cast<Line<int>*>(a.val);
-                    Line<int>* lineB = reinterpret_cast<Line<int>*>(b.val);
-                    return Algorithms::minimalPLineDistance<int>(point1, *lineA) < Algorithms::minimalPLineDistance<int>(point1, *lineB);
-                }
-            );
-            std::cout << "step 1: closest line = " << std::distance(houghLines.begin(), closest) << std::endl;
-            
-            // determine closest point of closest line
-            Line<int>* nextLine = reinterpret_cast<Line<int>*>(closest->val);
-            Line<int>::const_iterator nextPoint = Algorithms::minimalPLinePoint<int>(point1, *nextLine);
-            std::cout << "step 2: closest point = (" << nextPoint->first << ", " << nextPoint->second << ")" << std::endl;
-
-            // if the points of the line are not in the correct order, swap them
-            // TODO
-            if (nextPoint != nextLine->begin())
-                std::iter_swap(nextLine->begin(), nextLine->begin() + 1);
-
-            // move the element we found to the current position k + 1
-            size_t i = std::distance(houghLines.begin(), closest);
-            std::iter_swap(houghLines.begin() + k + 1, houghLines.begin() + i);
-        }
+        auxiliary::sortLines(houghLines);
 
         std::cout << "After sorting:" << std::endl;
         for (size_t k = 0; k < houghLines.size(); ++k) {

@@ -27,7 +27,7 @@
 #include "GameLibrary/Renderer.h"
 #include "GameLibrary/Algorithms.h"
 #include "unittests/UnitTests.h"
-
+#include "ocv-auxiliary.h"
 
 const int FRAMES_PER_SECOND = 20; // Fps auf 20 festlegen
 const std::string image("test3.png");
@@ -43,22 +43,6 @@ std::string intToStr(int a) {
 template<typename T> 
 T constrain(T value, T min, T max) {
     return std::min(std::max(value, min), max);
-}
-
-void swapPoints(cv::Vec4i& p) {
-    int x = p[0];
-    int y = p[1];
-    p[0] = p[2];
-    p[1] = p[3];
-    p[2] = x;
-    p[3] = y;
-}
-
-// TODO: nach Utilities oder GameLibrary verschieben
-void sortLines(std::vector<cv::Vec4i>& houghLines) {
-    //unittests::testMinimalPointLineDistance();
-    //unittests::testMinimalPointLinePoint();
-    unittests::testSortLines();
 }
 
 int main() {
@@ -269,7 +253,8 @@ int main() {
         HoughLinesP(edges, houghLines, rResolution, thetaResolution, interThreshold, minLineLength, maxLineGap); // runs the actual detection
 
         // sort the lines (TSP problem)
-        sortLines(houghLines);
+        //unittests::testSortLines();
+        auxiliary::sortLines(houghLines);
 
         // Draw the lines
         for(size_t i = 0; i < houghLines.size(); ++i) {
@@ -365,7 +350,7 @@ int main() {
 
     // Destroy the various items
     sdl::auxiliary::Utilities::cleanup(renderer, window, texture);
-	TTF_CloseFont(font);
+    TTF_CloseFont(font);
     SDL_Quit();
 
     return 0;
