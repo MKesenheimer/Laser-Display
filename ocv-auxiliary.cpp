@@ -9,7 +9,7 @@ namespace auxiliary {
             return;
         for (size_t k = 0; k < houghLines.size() - 1; ++k) {
             Line<int>* line0 = reinterpret_cast<Line<int>*>(houghLines[k].val);
-            const XYPoint<int>& point0 = (*line0)[0];
+            //const XYPoint<int>& point0 = (*line0)[0];
             const XYPoint<int>& point1 = (*line0)[1];
 
             // find closest line
