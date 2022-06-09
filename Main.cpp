@@ -30,7 +30,7 @@
 #include "ocv-auxiliary.h"
 
 const int FRAMES_PER_SECOND = 20; // Fps auf 20 festlegen
-const std::string image("test3.png");
+const std::string image("images/test3.png");
 
 // TODO: nach Utilities oder GameLibrary verschieben
 std::string intToStr(int a) {
@@ -43,6 +43,13 @@ std::string intToStr(int a) {
 template<typename T> 
 T constrain(T value, T min, T max) {
     return std::min(std::max(value, min), max);
+}
+
+template<typename T> 
+T distanceSq(XYPoint<T> a, XYPoint<T> b) {
+    T deltaX = a.first - b.first;
+    T deltaY = a.second - b.second;
+    return (deltaX * deltaX + deltaY * deltaY);
 }
 
 int main() {
@@ -103,7 +110,7 @@ int main() {
     }
 
     // setup text rendering
-    TTF_Font* font = TTF_OpenFont("lazy.ttf", 16);
+    TTF_Font* font = TTF_OpenFont("fonts/lazy.ttf", 16);
     if (font == NULL) {
         sdl::auxiliary::Utilities::logSDLError(std::cout, "TTF_OpenFont");
         sdl::auxiliary::Utilities::cleanup(window, renderer, texture);
@@ -141,25 +148,30 @@ int main() {
     // logic
     bool quit = false;
     bool reset = false;
-
+    bool blankMoves = false;
     // opencv specific
-    /*int lightThreshold = 0;
+#if 0
+    int lightThreshold = 50;
     int interThreshold = 40;
-    int minLineLength = 90;
+    int minLineLength = 0;
     int maxLineGap = 10;
-    int blursize = 5;
+    int blursize = 7;
     int upperThreshold = 300;
-    int lowerThreshold = 100;*/
-    int rResolution = 1;
-    float thetaResolution = CV_PI / 180;
+    int lowerThreshold = 200;
+#endif
 
-    int lightThreshold = 0;
+#if 1
+    int lightThreshold = 1;
     int interThreshold = 10;
     int minLineLength = 0;
     int maxLineGap = 10;
     int blursize = 11;
     int upperThreshold = 100;
     int lowerThreshold = 200;
+#endif
+
+    int rResolution = 1;
+    float thetaResolution = CV_PI / 180;
 
     // the event structure
     SDL_Event e;
@@ -182,11 +194,14 @@ int main() {
 
         // handle keyboard inputs (no lags and delays!)
         const uint8_t* keystate = SDL_GetKeyboardState(NULL);
+        if (keystate[SDL_SCANCODE_B]) {
+            blankMoves = !blankMoves;
+        }
         if (keystate[SDL_SCANCODE_E]) {
             lightThreshold++;
         }
         if (keystate[SDL_SCANCODE_D]) {
-            lightThreshold = (lightThreshold >= 1 ? lightThreshold - 1 : lightThreshold);
+            lightThreshold = (lightThreshold >= 2 ? lightThreshold - 1 : lightThreshold);
         }
         if (keystate[SDL_SCANCODE_R]) {
             interThreshold++;
@@ -274,31 +289,54 @@ int main() {
 
         // apply the lines to the renderers
         points.reserve(15000); // TODO
+        int lastLaser[2] = {Renderer::screen_width / 2, Renderer::screen_height / 2};
+        int lastSDL[2] = {Renderer::screen_width / 2, Renderer::screen_height / 2};
         for(size_t i = 0; i < houghLines.size(); ++i) {
             cv::Vec4i l = houghLines[i];
             cv::Vec3b intensity1 = dst.at<cv::Vec3b>(cv::Point(constrain<int>(l[0], 0, dst.cols - 1), constrain<int>(l[1], 0, dst.rows - 1)));
             cv::Vec3b intensity2 = dst.at<cv::Vec3b>(cv::Point(constrain<int>(l[2], 0, dst.cols - 1), constrain<int>(l[3], 0, dst.rows - 1)));
+            
             int blue  = constrain<int>((intensity1.val[0] + intensity2.val[0]) / 2, 0, 255);
             int green = constrain<int>((intensity1.val[1] + intensity2.val[1]) / 2, 0, 255);
             int red   = constrain<int>((intensity1.val[2] + intensity2.val[2]) / 2, 0, 255);
+
             if ((blue + green + red) >= lightThreshold) {
+                // TODO: implement color correction function
+                float colorFactor = 255 / std::max(blue, std::max(green, red));
+                blue  *= colorFactor;
+                green *= colorFactor;
+                red   *= colorFactor;
+
                 // Points for Laser output
-                points.push_back({(float)l[0], (float)l[1], 0, 0, 0, 255, false});
+                if (distanceSq(XYPoint<int>({l[0], l[1]}), XYPoint<int>({lastLaser[0], lastLaser[1]})) > 20) {
+                    // blank move
+                    points.push_back({(float)lastLaser[0], (float)lastLaser[1], 0, 0, 0, 255, false});
+                    points.push_back({(float)l[0], (float)l[1], 0, 0, 0, 255, false});
+                }
+                // laser line
                 points.push_back({(float)l[0], (float)l[1], blue, green, red, 255, false});
                 points.push_back({(float)l[2], (float)l[3], blue, green, red, 255, false});
-                points.push_back({(float)l[2], (float)l[3], 0, 0, 0, 255, false});
+                // store the last laser point
+                lastLaser[0] = (int)l[2];
+                lastLaser[1] = (int)l[3];
+
                 // Points for SDL output
                 l[0] = Renderer::transform(l[0], 0, img.cols, 0, Renderer::screen_width);
                 l[1] = Renderer::transform(l[1], 0, img.rows, 0, Renderer::screen_height);
                 l[2] = Renderer::transform(l[2], 0, img.cols, 0, Renderer::screen_width);
                 l[3] = Renderer::transform(l[3], 0, img.rows, 0, Renderer::screen_height);
-                lineRGBA(renderer, (int)l[2], (int)l[3], (int)l[0], (int)l[1], red, green, blue, 255);
+                if (blankMoves)
+                    lineRGBA(renderer, lastSDL[0], lastSDL[1], (int)l[0], (int)l[1], 0, 255, 255, 255); // blank move
+                lineRGBA(renderer, (int)l[0], (int)l[1], (int)l[2], (int)l[3], red, green, blue, 255);
+                // store the last SDL point
+                lastSDL[0] = (int)l[2];
+                lastSDL[1] = (int)l[3];
             }
         }
 
 #ifdef LUMAX_OUTPUT
         Renderer::drawPoints(points, lumaxRenderer);
-        Renderer::sendPointsToLumax(lumaxHandle, lumaxRenderer, 3000);
+        Renderer::sendPointsToLumax(lumaxHandle, lumaxRenderer, 8000);
 #endif
 
         // measure time

@@ -1,9 +1,3 @@
-/*
- *  ocv-auxiliary.h
- *  Created by Matthias Kesenheimer on 08.06.22.
- *  Copyright 2022. All rights reserved.
- */
-#pragma once
 #include "ocv-auxiliary.h"
 #include "algorithm"
 #include "GameLibrary/Point.h"
@@ -11,6 +5,8 @@
 
 namespace auxiliary {
     void sortLines(std::vector<cv::Vec4i>& houghLines) {
+        if (houghLines.size() <= 1)
+            return;
         for (size_t k = 0; k < houghLines.size() - 1; ++k) {
             Line<int>* line0 = reinterpret_cast<Line<int>*>(houghLines[k].val);
             const XYPoint<int>& point0 = (*line0)[0];
@@ -36,6 +32,6 @@ namespace auxiliary {
             // move the element we found to the current position k + 1
             size_t i = std::distance(houghLines.begin(), closest);
             std::iter_swap(houghLines.begin() + k + 1, houghLines.begin() + i);
-        }        
+        }
     }
 }
