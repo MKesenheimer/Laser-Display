@@ -140,7 +140,7 @@ int main() {
     lumaxRenderer.mirrorFactX = -1;
     lumaxRenderer.mirrorFactY = 1;
     // scaling of the laser output in respect to the SDL screen
-    lumaxRenderer.scalingX = 0.5;
+    lumaxRenderer.scalingX = 0.8;
     lumaxRenderer.scalingY = 0.5;
     lumaxRenderer.swapXY = 0;
 #endif
@@ -240,30 +240,49 @@ int main() {
             lowerThreshold = (lowerThreshold >= 1 ? lowerThreshold - 1 : lowerThreshold);
         }
         
+#define MEASURETIME
+#ifdef MEASURETIME
         // measure time
         auto start_time = std::chrono::high_resolution_clock::now();
         std::vector<Point<float>> points;
+#endif
+
+//#define STEP 1
 
         // Reading image
         cv::Mat img = cv::imread(image);
+#if STEP == 0
+        cv::Mat display = img.clone();
+#endif
 
         // Convert to graycsale
         cv::Mat img_gray;
         cv::cvtColor(img, img_gray, cv::COLOR_BGR2GRAY);
+#if STEP == 1
+        cv::Mat display = img_gray.clone();
+        // convert to original space, preserving content
+        cv::cvtColor(display, display, cv::COLOR_GRAY2RGB);
+#endif
+
         // Blur the image for better edge detection
         cv::Mat img_blur;
-        cv::GaussianBlur(img, img_blur, cv::Size(blursize, blursize), 0);
+        cv::GaussianBlur(img_gray, img_blur, cv::Size(blursize, blursize), 0);
+#if STEP == 2
+        cv::Mat display = img_blur.clone();
+        // convert to original space, preserving content
+        cv::cvtColor(display, display, cv::COLOR_GRAY2RGB);
+#endif
 
         // Canny edge detection
         cv::Mat edges;
         cv::Canny(img_blur, edges, lowerThreshold, upperThreshold, 3, false);
-        // convert back to RGB image
-        cv::Mat dst;
-        cv::cvtColor(edges, dst, cv::COLOR_GRAY2RGB);
-        cv::Mat lines = dst.clone(); //cv::Mat::zeros(dst.rows, dst.cols, CV_64F);
-        lines.setTo(cv::Scalar(0, 0, 0));
+#if STEP == 3
+        cv::Mat display = edges.clone();
+        // convert to original space, preserving content
+        cv::cvtColor(display, display, cv::COLOR_GRAY2RGB);
+#endif
 
-        // Standard Hough Line Transform
+        // probabilistic Hough Line Transform
         std::vector<cv::Vec4i> houghLines; // HoughLinesP: will hold the results of the detection
         HoughLinesP(edges, houghLines, rResolution, thetaResolution, interThreshold, minLineLength, maxLineGap); // runs the actual detection
 
@@ -272,29 +291,43 @@ int main() {
         auxiliary::sortLines(houghLines);
 
         // Draw the lines
+        cv::Mat lines = edges.clone(); // copy to have a matrix with the right size
+        lines.setTo(cv::Scalar(0, 0, 0));
         for(size_t i = 0; i < houghLines.size(); ++i) {
             cv::Vec4i l = houghLines[i];
             cv::line(lines, cv::Point(l[0], l[1]), cv::Point(l[2], l[3]), cv::Scalar(255, 255, 255), 1, cv::LINE_AA);
         }
-        // use lines as mask and multiply original image with mask
-        cv::bitwise_and(img, lines, dst);
+        // convert to original space, preserving content
+        cv::cvtColor(lines, lines, cv::COLOR_GRAY2RGB);
 
+#if STEP == 4
+        cv::Mat display = lines.clone();
+#endif
+
+        // use lines as mask and multiply original image with mask
+        cv::bitwise_and(img, lines, lines);
+#if STEP == 5
+        cv::Mat display = lines.clone();
+#endif
         // Draw the background black
         SDL_RenderClear(renderer);        
         boxRGBA(renderer, 0, 0, Renderer::screen_width, Renderer::screen_height, 10, 10, 10, 255);
 
+#ifdef STEP
         // render the image
-        //SDL_UpdateTexture(texture, NULL, (void*)dst.data, dst.step1());
-        //SDL_RenderCopy(renderer, texture, NULL, NULL);
+        SDL_UpdateTexture(texture, NULL, (void*)display.data, display.step1());
+        SDL_RenderCopy(renderer, texture, NULL, NULL);
+#endif
 
         // apply the lines to the renderers
+        std::vector<Point<float>> points;
         points.reserve(15000); // TODO
         int lastLaser[2] = {Renderer::screen_width / 2, Renderer::screen_height / 2};
         int lastSDL[2] = {Renderer::screen_width / 2, Renderer::screen_height / 2};
         for(size_t i = 0; i < houghLines.size(); ++i) {
             cv::Vec4i l = houghLines[i];
-            cv::Vec3b intensity1 = dst.at<cv::Vec3b>(cv::Point(constrain<int>(l[0], 0, dst.cols - 1), constrain<int>(l[1], 0, dst.rows - 1)));
-            cv::Vec3b intensity2 = dst.at<cv::Vec3b>(cv::Point(constrain<int>(l[2], 0, dst.cols - 1), constrain<int>(l[3], 0, dst.rows - 1)));
+            cv::Vec3b intensity1 = lines.at<cv::Vec3b>(cv::Point(constrain<int>(l[0], 0, lines.cols - 1), constrain<int>(l[1], 0, lines.rows - 1)));
+            cv::Vec3b intensity2 = lines.at<cv::Vec3b>(cv::Point(constrain<int>(l[2], 0, lines.cols - 1), constrain<int>(l[3], 0, lines.rows - 1)));
             
             int blue  = constrain<int>((intensity1.val[0] + intensity2.val[0]) / 2, 0, 255);
             int green = constrain<int>((intensity1.val[1] + intensity2.val[1]) / 2, 0, 255);
@@ -339,12 +372,14 @@ int main() {
         Renderer::sendPointsToLumax(lumaxHandle, lumaxRenderer, 8000);
 #endif
 
+#ifdef MEASURETIME
         // measure time
         auto end_time = std::chrono::high_resolution_clock::now();
         auto time = end_time - start_time;
         std::cout << "Extracted " << houghLines.size() << " lines and ";
         std::cout << "generated " << points.size() << " points. ";
         std::cout << "Took " << time/std::chrono::milliseconds(1) << "ms to run.\n";
+#endif
 
         // build text for displaying values
         std::string str = "FPS: " +  intToStr(1000.0f * frame / worldtime.getTicks());
