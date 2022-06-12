@@ -29,6 +29,10 @@
 #include "unittests/UnitTests.h"
 #include "ocv-auxiliary.h"
 
+//#define OCVSTEP 1
+#define MEASURETIME
+
+// TODO: von stdin lesen
 const int FRAMES_PER_SECOND = 20; // Fps auf 20 festlegen
 const std::string image("images/test3.png");
 
@@ -151,6 +155,7 @@ int main() {
     bool blankMoves = false;
     // opencv specific
 #if 0
+    int fillShortBlanks = 0;
     int lightThreshold = 50;
     int interThreshold = 40;
     int minLineLength = 0;
@@ -161,11 +166,13 @@ int main() {
 #endif
 
 #if 1
+    // zoidberg
+    int fillShortBlanks = 50;
     int lightThreshold = 1;
     int interThreshold = 10;
-    int minLineLength = 0;
-    int maxLineGap = 10;
-    int blursize = 11;
+    int minLineLength = 3;
+    int maxLineGap = 1;
+    int blursize = 9;
     int upperThreshold = 100;
     int lowerThreshold = 200;
 #endif
@@ -194,8 +201,15 @@ int main() {
 
         // handle keyboard inputs (no lags and delays!)
         const uint8_t* keystate = SDL_GetKeyboardState(NULL);
+
         if (keystate[SDL_SCANCODE_B]) {
             blankMoves = !blankMoves;
+        }
+        if (keystate[SDL_SCANCODE_W]) {
+            fillShortBlanks++;
+        }
+        if (keystate[SDL_SCANCODE_S]) {
+            fillShortBlanks = (fillShortBlanks >= 2 ? fillShortBlanks - 1 : fillShortBlanks);
         }
         if (keystate[SDL_SCANCODE_E]) {
             lightThreshold++;
@@ -239,44 +253,61 @@ int main() {
         if (keystate[SDL_SCANCODE_L]) {
             lowerThreshold = (lowerThreshold >= 1 ? lowerThreshold - 1 : lowerThreshold);
         }
-        
-#define MEASURETIME
+
 #ifdef MEASURETIME
         // measure time
         auto start_time = std::chrono::high_resolution_clock::now();
-        std::vector<Point<float>> points;
 #endif
-
-//#define STEP 1
 
         // Reading image
         cv::Mat img = cv::imread(image);
-#if STEP == 0
+#if OCVSTEP == 0
         cv::Mat display = img.clone();
 #endif
 
-        // Convert to graycsale
-        cv::Mat img_gray;
-        cv::cvtColor(img, img_gray, cv::COLOR_BGR2GRAY);
-#if STEP == 1
-        cv::Mat display = img_gray.clone();
-        // convert to original space, preserving content
-        cv::cvtColor(display, display, cv::COLOR_GRAY2RGB);
+// TODO: test if HSV threshold may improve object detection
+#if 0
+        // HSV threshold detection
+        // Convert from BGR to HSV colorspace
+        cv::Mat imgHSV;
+        cv::cvtColor(img, imgHSV, cv::COLOR_BGR2HSV);
+        // Detect the object based on HSV Range Values
+        cv::Mat img_threshold;
+        int max_value = 255;
+        int max_value_H = 360/2;
+        int low_H = 0;
+        int low_S = 0;
+        int low_V = 0;
+        int high_H = max_value_H;
+        int high_S = max_value;
+        int high_V = max_value;
+        cv::inRange(imgHSV, cv::Scalar(low_H, low_S, low_V), cv::Scalar(high_H, high_S, high_V), img_threshold);
+#if OCVSTEP == 1
+        cv::Mat display = img_threshold.clone();
+        //cv::cvtColor(display, display, cv::COLOR_HSV2BGR);
+#endif
 #endif
 
         // Blur the image for better edge detection
         cv::Mat img_blur;
-        cv::GaussianBlur(img_gray, img_blur, cv::Size(blursize, blursize), 0);
-#if STEP == 2
+        cv::GaussianBlur(img, img_blur, cv::Size(blursize, blursize), 0);
+#if OCVSTEP == 2
         cv::Mat display = img_blur.clone();
+#endif
+
+        // Convert to graycsale
+        cv::Mat img_gray;
+        cv::cvtColor(img_blur, img_gray, cv::COLOR_BGR2GRAY);
+#if OCVSTEP == 3
+        cv::Mat display = img_gray.clone();
         // convert to original space, preserving content
         cv::cvtColor(display, display, cv::COLOR_GRAY2RGB);
 #endif
 
         // Canny edge detection
         cv::Mat edges;
-        cv::Canny(img_blur, edges, lowerThreshold, upperThreshold, 3, false);
-#if STEP == 3
+        cv::Canny(img_gray, edges, lowerThreshold, upperThreshold, 3, false);
+#if OCVSTEP == 4
         cv::Mat display = edges.clone();
         // convert to original space, preserving content
         cv::cvtColor(display, display, cv::COLOR_GRAY2RGB);
@@ -285,9 +316,7 @@ int main() {
         // probabilistic Hough Line Transform
         std::vector<cv::Vec4i> houghLines; // HoughLinesP: will hold the results of the detection
         HoughLinesP(edges, houghLines, rResolution, thetaResolution, interThreshold, minLineLength, maxLineGap); // runs the actual detection
-
         // sort the lines (TSP problem)
-        //unittests::testSortLines();
         auxiliary::sortLines(houghLines);
 
         // Draw the lines
@@ -300,20 +329,20 @@ int main() {
         // convert to original space, preserving content
         cv::cvtColor(lines, lines, cv::COLOR_GRAY2RGB);
 
-#if STEP == 4
+#if OCVSTEP == 5
         cv::Mat display = lines.clone();
 #endif
 
         // use lines as mask and multiply original image with mask
         cv::bitwise_and(img, lines, lines);
-#if STEP == 5
+#if OCVSTEP == 6
         cv::Mat display = lines.clone();
 #endif
         // Draw the background black
         SDL_RenderClear(renderer);        
         boxRGBA(renderer, 0, 0, Renderer::screen_width, Renderer::screen_height, 10, 10, 10, 255);
 
-#ifdef STEP
+#ifdef OCVSTEP
         // render the image
         SDL_UpdateTexture(texture, NULL, (void*)display.data, display.step1());
         SDL_RenderCopy(renderer, texture, NULL, NULL);
@@ -341,7 +370,7 @@ int main() {
                 red   *= colorFactor;
 
                 // Points for Laser output
-                if (distanceSq(XYPoint<int>({l[0], l[1]}), XYPoint<int>({lastLaser[0], lastLaser[1]})) > 20) {
+                if (distanceSq(XYPoint<int>({l[0], l[1]}), XYPoint<int>({lastLaser[0], lastLaser[1]})) > fillShortBlanks) {
                     // blank move
                     points.push_back({(float)lastLaser[0], (float)lastLaser[1], 0, 0, 0, 255, false});
                     points.push_back({(float)l[0], (float)l[1], 0, 0, 0, 255, false});
@@ -350,8 +379,8 @@ int main() {
                 points.push_back({(float)l[0], (float)l[1], blue, green, red, 255, false});
                 points.push_back({(float)l[2], (float)l[3], blue, green, red, 255, false});
                 // store the last laser point
-                lastLaser[0] = (int)l[2];
-                lastLaser[1] = (int)l[3];
+                lastLaser[0] = l[2];
+                lastLaser[1] = l[3];
 
                 // Points for SDL output
                 l[0] = Renderer::transform(l[0], 0, img.cols, 0, Renderer::screen_width);
@@ -362,8 +391,8 @@ int main() {
                     lineRGBA(renderer, lastSDL[0], lastSDL[1], (int)l[0], (int)l[1], 0, 255, 255, 255); // blank move
                 lineRGBA(renderer, (int)l[0], (int)l[1], (int)l[2], (int)l[3], red, green, blue, 255);
                 // store the last SDL point
-                lastSDL[0] = (int)l[2];
-                lastSDL[1] = (int)l[3];
+                lastSDL[0] = l[2];
+                lastSDL[1] = l[3];
             }
         }
 
@@ -384,27 +413,28 @@ int main() {
         // build text for displaying values
         std::string str = "FPS: " +  intToStr(1000.0f * frame / worldtime.getTicks());
         sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 25);
-        str = "(e+, d-): Light threshold = " + intToStr(lightThreshold);
+        str = "(w+, s-): fill shorts = " + intToStr(fillShortBlanks);
         sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 50);
-        str = "(r+, f-): Intersection threshold = " + intToStr(interThreshold);
+        str = "(e+, d-): Light threshold = " + intToStr(lightThreshold);
         sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 75);
-        str = "(t+, g-): Min line length = " + intToStr(minLineLength);
+        str = "(r+, f-): Intersection threshold = " + intToStr(interThreshold);
         sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 100);
-        str = "(z+, h-): Max line gap = " + intToStr(maxLineGap);
+        str = "(t+, g-): Min line length = " + intToStr(minLineLength);
         sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 125);
-        str = "(u+, j-): Blur = " + intToStr(blursize);
+        str = "(z+, h-): Max line gap = " + intToStr(maxLineGap);
         sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 150);
-        str = "(i+, k-): Upper threshold = " + intToStr(upperThreshold);
+        str = "(u+, j-): Blur = " + intToStr(blursize);
         sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 175);
-        str = "(o+, l-): Lower threshold = " + intToStr(lowerThreshold);
+        str = "(i+, k-): Upper threshold = " + intToStr(upperThreshold);
         sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 200);
+        str = "(o+, l-): Lower threshold = " + intToStr(lowerThreshold);
+        sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 225);
 
        // FPS
         if (worldtime.getTicks() > 1000 ) {
             worldtime.start();
             frame = 0;
         }
-        
 
         // apply the renderer to the screen
         SDL_RenderPresent(renderer);
