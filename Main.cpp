@@ -83,9 +83,6 @@ int main() {
         return -1;
     }
 
-    // set the screen dimensions -> sets the global variabls Renderer::screen_width and Renderer::screen_height
-    Renderer::setDimensions(960, 540);
-
     // Set up our window and renderer, this time let's put our window in the center of the screen
     SDL_Window *window = SDL_CreateWindow("Laser-Display", SDL_WINDOWPOS_CENTERED,
             SDL_WINDOWPOS_CENTERED, Renderer::screen_width, Renderer::screen_height, SDL_WINDOW_SHOWN);
@@ -95,6 +92,7 @@ int main() {
         return -1;
     }
 
+    // load the SDL renderer and set the screen dimensions
     SDL_Renderer *renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
     if (renderer == NULL) {
         sdl::auxiliary::Utilities::logSDLError(std::cout, "SD_CreateRenderer");
@@ -102,6 +100,8 @@ int main() {
         SDL_Quit();
         return -1;
     }
+    // sets the global variabls Renderer::screen_width and Renderer::screen_height
+    Renderer::setDimensions(960, 540);
 
     // read image for the first time to get its dimensions
     cv::Mat img = cv::imread(image);
@@ -201,7 +201,6 @@ int main() {
 
         // handle keyboard inputs (no lags and delays!)
         const uint8_t* keystate = SDL_GetKeyboardState(NULL);
-
         if (keystate[SDL_SCANCODE_B]) {
             blankMoves = !blankMoves;
         }
@@ -362,6 +361,7 @@ int main() {
             int green = constrain<int>((intensity1.val[1] + intensity2.val[1]) / 2, 0, 255);
             int red   = constrain<int>((intensity1.val[2] + intensity2.val[2]) / 2, 0, 255);
 
+            // sort out dark lines
             if ((blue + green + red) >= lightThreshold) {
                 // TODO: implement color correction function
                 float colorFactor = 255 / std::max(blue, std::max(green, red));
