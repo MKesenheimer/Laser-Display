@@ -29,12 +29,13 @@
 #include "unittests/UnitTests.h"
 #include "ocv-auxiliary.h"
 
-//#define OCVSTEP 1
+#define OCVSTEP 0
 #define MEASURETIME
 
 // TODO: von stdin lesen
 const int FRAMES_PER_SECOND = 20; // Fps auf 20 festlegen
 const std::string image("images/test3.png");
+const std::string video("videos/doom.mp4");
 
 // TODO: nach Utilities oder GameLibrary verschieben
 std::string intToStr(int a) {
@@ -83,9 +84,33 @@ int main() {
         return -1;
     }
 
+    // open the default camera
+    //cv::VideoCapture capture(0);
+    // open video file
+    cv::VideoCapture capture(video);
+    if(!capture.isOpened()) {
+        sdl::auxiliary::Utilities::logSDLError(std::cout, "VideoCapture");
+        SDL_Quit();
+        return 1;
+    }
+
+    // TODO: in Funktion auslagern
+    // read image for the first time to get its dimensions
+    cv::Mat img;
+    // read image from file
+    //img = cv::imread(image);
+    // get a new frame from camera
+    capture >> img;
+    cv::Rect crop(150, 50, img.cols - 2*150, img.rows - 150);
+    // Crop the full image to that image contained by the rectangle myROI
+    // Note that this doesn't copy the data
+    img = img(crop);
+    // sets the global variabls Renderer::screen_width and Renderer::screen_height
+    Renderer::setDimensions(img.cols, img.rows);
+
+    // TODO: Window-Abmessungen automatisch gemäß den Abmessungen des eingelesenen Bildes setzen, sodass es immer ungefähr 900 * 600 hat
     // Set up our window and renderer, this time let's put our window in the center of the screen
-    SDL_Window *window = SDL_CreateWindow("Laser-Display", SDL_WINDOWPOS_CENTERED,
-            SDL_WINDOWPOS_CENTERED, Renderer::screen_width, Renderer::screen_height, SDL_WINDOW_SHOWN);
+    SDL_Window *window = SDL_CreateWindow("Laser-Display", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, Renderer::screen_width, Renderer::screen_height, SDL_WINDOW_SHOWN);
     if (window == NULL) {
         sdl::auxiliary::Utilities::logSDLError(std::cout, "SDL_CreateWindow");
         SDL_Quit();
@@ -100,12 +125,9 @@ int main() {
         SDL_Quit();
         return -1;
     }
-    // sets the global variabls Renderer::screen_width and Renderer::screen_height
-    Renderer::setDimensions(960, 540);
 
-    // read image for the first time to get its dimensions
-    cv::Mat img = cv::imread(image);
-    SDL_Texture* texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_BGR24, SDL_TEXTUREACCESS_STREAMING, img.cols, img.rows);
+    // create a texture for displaying images
+    SDL_Texture* texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_BGR24, SDL_TEXTUREACCESS_STREAMING, Renderer::screen_width, Renderer::screen_height);
     if (renderer == NULL) {
         sdl::auxiliary::Utilities::logSDLError(std::cout, "SDL_CreateTexture");
         sdl::auxiliary::Utilities::cleanup(window, renderer);
@@ -132,7 +154,7 @@ int main() {
     {
         lumaxHandle = Lumax_OpenDevice(1, 0);
         printf("Lumax_OpenDevice returned handle: 0x%lx\n", (unsigned long)lumaxHandle);
-        if (lumaxHandle == NULL){
+        if (lumaxHandle == NULL) {
             sdl::auxiliary::Utilities::logSDLError(std::cout, "Lumax_OpenDevice");
             sdl::auxiliary::Utilities::cleanup(window, renderer, texture);
             SDL_Quit();
@@ -144,17 +166,18 @@ int main() {
     lumaxRenderer.mirrorFactX = -1;
     lumaxRenderer.mirrorFactY = 1;
     // scaling of the laser output in respect to the SDL screen
-    lumaxRenderer.scalingX = 0.8;
-    lumaxRenderer.scalingY = 0.5;
+    lumaxRenderer.scalingX = 0.2;
+    lumaxRenderer.scalingY = 0.15;
     lumaxRenderer.swapXY = 0;
 #endif
 
     // logic
     bool quit = false;
-    bool reset = false;
+    bool pause = false;
     bool blankMoves = false;
     // opencv specific
 #if 0
+    // doom picture
     int fillShortBlanks = 0;
     int lightThreshold = 50;
     int interThreshold = 40;
@@ -165,7 +188,7 @@ int main() {
     int lowerThreshold = 200;
 #endif
 
-#if 1
+#if 0
     // zoidberg
     int fillShortBlanks = 50;
     int lightThreshold = 1;
@@ -177,8 +200,32 @@ int main() {
     int lowerThreshold = 200;
 #endif
 
+#if 0
+    // video capture
+    int fillShortBlanks = 0;
+    int lightThreshold = 50;
+    int interThreshold = 30;
+    int minLineLength = 0;
+    int maxLineGap = 5;
+    int blursize = 19;
+    int upperThreshold = 30;
+    int lowerThreshold = 10;
+#endif
+
+#if 1
+    // doom video capture
+    int fillShortBlanks = 10;
+    int lightThreshold = 50;
+    int interThreshold = 10;
+    int minLineLength = 0;
+    int maxLineGap = 4;
+    int blursize = 17;
+    int upperThreshold = 30;
+    int lowerThreshold = 10;
+#endif
+
     int rResolution = 1;
-    float thetaResolution = CV_PI / 180;
+    float thetaResolution = CV_PI / 360; // 0.5°
 
     // the event structure
     SDL_Event e;
@@ -196,7 +243,7 @@ int main() {
                 if (e.key.keysym.sym == SDLK_c)
                     cap = !cap;
                 if (e.key.keysym.sym == SDLK_SPACE)
-                    reset = true;
+                    pause = !pause;
         }
 
         // handle keyboard inputs (no lags and delays!)
@@ -247,7 +294,7 @@ int main() {
             upperThreshold = (upperThreshold >= 1 ? upperThreshold - 1 : upperThreshold);
         }
         if (keystate[SDL_SCANCODE_O]) {
-            lowerThreshold++;
+            lowerThreshold = (lowerThreshold < upperThreshold ? lowerThreshold + 1 : upperThreshold - 1);
         }
         if (keystate[SDL_SCANCODE_L]) {
             lowerThreshold = (lowerThreshold >= 1 ? lowerThreshold - 1 : lowerThreshold);
@@ -258,8 +305,15 @@ int main() {
         auto start_time = std::chrono::high_resolution_clock::now();
 #endif
 
-        // Reading image
-        cv::Mat img = cv::imread(image);
+        if (!pause) {
+            // Reading image
+            //cv::Mat img = cv::imread(image);
+            capture >> img;
+            cv::Rect crop(150, 50, img.cols - 2*150, img.rows - 150);
+            // Crop the full image to that image contained by the rectangle myROI
+            // Note that this doesn't copy the data
+            img = img(crop);
+        }
 #if OCVSTEP == 0
         cv::Mat display = img.clone();
 #endif
@@ -299,7 +353,7 @@ int main() {
         cv::cvtColor(img_blur, img_gray, cv::COLOR_BGR2GRAY);
 #if OCVSTEP == 3
         cv::Mat display = img_gray.clone();
-        // convert to original space, preserving content
+        // convert to original color space, preserving content
         cv::cvtColor(display, display, cv::COLOR_GRAY2RGB);
 #endif
 
@@ -308,7 +362,7 @@ int main() {
         cv::Canny(img_gray, edges, lowerThreshold, upperThreshold, 3, false);
 #if OCVSTEP == 4
         cv::Mat display = edges.clone();
-        // convert to original space, preserving content
+        // convert to original color space, preserving content
         cv::cvtColor(display, display, cv::COLOR_GRAY2RGB);
 #endif
 
@@ -325,9 +379,8 @@ int main() {
             cv::Vec4i l = houghLines[i];
             cv::line(lines, cv::Point(l[0], l[1]), cv::Point(l[2], l[3]), cv::Scalar(255, 255, 255), 1, cv::LINE_AA);
         }
-        // convert to original space, preserving content
+        // convert to original color space, preserving content
         cv::cvtColor(lines, lines, cv::COLOR_GRAY2RGB);
-
 #if OCVSTEP == 5
         cv::Mat display = lines.clone();
 #endif
@@ -398,9 +451,9 @@ int main() {
 
 #ifdef LUMAX_OUTPUT
         Renderer::drawPoints(points, lumaxRenderer);
-        Renderer::sendPointsToLumax(lumaxHandle, lumaxRenderer, 8000);
+        Renderer::sendPointsToLumax(lumaxHandle, lumaxRenderer, 20000);
 #endif
-
+        
 #ifdef MEASURETIME
         // measure time
         auto end_time = std::chrono::high_resolution_clock::now();
@@ -413,21 +466,21 @@ int main() {
         // build text for displaying values
         std::string str = "FPS: " +  intToStr(1000.0f * frame / worldtime.getTicks());
         sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 25);
-        str = "(w+, s-): fill shorts = " + intToStr(fillShortBlanks);
+        str = "(w+, s-): General: fill shorts = " + intToStr(fillShortBlanks);
         sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 50);
-        str = "(e+, d-): Light threshold = " + intToStr(lightThreshold);
+        str = "(e+, d-): General: Light threshold = " + intToStr(lightThreshold);
         sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 75);
-        str = "(r+, f-): Intersection threshold = " + intToStr(interThreshold);
+        str = "(r+, f-): Line detection: Intersection threshold = " + intToStr(interThreshold);
         sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 100);
-        str = "(t+, g-): Min line length = " + intToStr(minLineLength);
+        str = "(t+, g-): Line detection: Min line length = " + intToStr(minLineLength);
         sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 125);
-        str = "(z+, h-): Max line gap = " + intToStr(maxLineGap);
+        str = "(z+, h-): Line detection: Max line gap = " + intToStr(maxLineGap);
         sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 150);
-        str = "(u+, j-): Blur = " + intToStr(blursize);
+        str = "(u+, j-): Blurring: Blur size = " + intToStr(blursize);
         sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 175);
-        str = "(i+, k-): Upper threshold = " + intToStr(upperThreshold);
+        str = "(i+, k-): Edge Detection: Upper threshold = " + intToStr(upperThreshold);
         sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 200);
-        str = "(o+, l-): Lower threshold = " + intToStr(lowerThreshold);
+        str = "(o+, l-): Edge Detection: Lower threshold = " + intToStr(lowerThreshold);
         sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 225);
 
        // FPS
