@@ -1,9 +1,9 @@
 #include "GameLibrary/Algorithms.h"
+#include "GameLibrary/Sort.h"
 #include <vector>
 #include <iostream>
 #include <opencv2/opencv.hpp>
 #include <opencv2/imgproc.hpp>
-#include "ocv-auxiliary.h"
 
 // TODO: use google unittests
 namespace unittests {
@@ -52,8 +52,36 @@ namespace unittests {
         Line<int>* line1 = reinterpret_cast<Line<int>*>(l1.val);
         Line<int>* line2 = reinterpret_cast<Line<int>*>(l2.val);
 
+        // result should be 
+        // l1 = 1, 2, 3, 4
+        // l2 = 5, 6, 7, 8
+        // d  = 32, 72, 8, 32
         std::array<int, 4> d = Algorithms::lineDistanceSquare((*line1), (*line2));
         std::cout << "d  = " << d[0] << ", " << d[1] << ", " << d[2] << ", " << d[3] << std::endl;
+
+
+        // second test
+        std::vector<cv::Vec4i> houghLines = {l1, l2};
+        std::vector<Line<int>*> lines;
+      
+        lines.push_back(reinterpret_cast<Line<int>*>(houghLines[0].val));
+        lines.push_back(reinterpret_cast<Line<int>*>(houghLines[1].val));
+
+        // modify values in both structures
+        (*lines[0])[0].first = 0;
+        houghLines[0][1] = 1;
+
+        // result should be
+        // l1 = 0, 1, 3, 4
+        // l2 = 5, 6, 7, 8
+        // houghLines[0][0] = 0
+        std::cout << "l1 = " << (*lines[0])[0].first << ", " << (*lines[0])[0].second << ", " << (*lines[0])[1].first << ", " << (*lines[0])[1].second << std::endl;
+        std::cout << "l2 = " << (*lines[1])[0].first << ", " << (*lines[1])[0].second << ", " << (*lines[1])[1].first << ", " << (*lines[1])[1].second << std::endl;
+        std::cout << "houghLines[0][0] = " << houghLines[0][0] << std::endl;
+
+        // TODO
+        // third test
+        //std::vector<Line<int>> lines2; 
     }
 
     void testMinimalLineLineDistance() {
@@ -89,7 +117,8 @@ namespace unittests {
         houghLines.push_back({3, 4, 4, 4});
         houghLines.push_back({4, 2, 3, 2});
         houghLines.push_back({4, 3, 5, 4});*/
-        /*(1, 1, 2, 2)
+        /* result:
+          (1, 1, 2, 2)
           (3, 2, 4, 2)
           (4, 3, 5, 4)
           (4, 4, 3, 4)*/
@@ -98,13 +127,17 @@ namespace unittests {
         houghLines.push_back({3, 4, 4, 4});
         houghLines.push_back({1, 1, 2, 2});
         houghLines.push_back({5, 4, 4, 3});
+        /* result:
+          (4, 2, 3, 2)
+          (2, 2, 1, 1)
+          (3, 4, 4, 4)
+          (5, 4, 4, 3)*/
 
-        auxiliary::sortLines(houghLines);
-
+        Sort::sortLines(houghLines);
         std::cout << "After sorting:" << std::endl;
         for (size_t k = 0; k < houghLines.size(); ++k) {
             cv::Vec4i l = houghLines[k];
             std::cout << "(" << l[0] << ", " << l[1] << ", " << l[2] << ", " << l[3] << ")" << std::endl;
-        }        
+        }
     }
 }

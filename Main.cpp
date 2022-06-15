@@ -23,19 +23,30 @@
 #include <SDL_ttf.h>
 #include "SDLTools/Utilities.h"
 #include "SDLTools/Timer.h"
+#include "SDLTools/CommandLineParser.h"
 #include "GameLibrary/Point.h"
 #include "GameLibrary/Renderer.h"
 #include "GameLibrary/Algorithms.h"
-#include "unittests/UnitTests.h"
-#include "ocv-auxiliary.h"
+#include "GameLibrary/Sort.h"
 
-#define OCVSTEP 0
+#include "unittests/UnitTests.h"
+
+#define OCVSTEP 5
 #define MEASURETIME
 
-// TODO: von stdin lesen
+// TODO: read from command line
 const int FRAMES_PER_SECOND = 20; // Fps auf 20 festlegen
-const std::string image("images/test3.png");
-const std::string video("videos/doom.mp4");
+const std::string fimage("images/doom-smallres.png");
+const std::string fvideo("videos/doom.mp4");
+// TODO: read from command line
+enum InputType {
+    image, video, camera
+};
+const InputType inputtype = InputType::image;
+// TODO: read from command line
+// TODO: if values are 0, use original values
+const int width = 960;
+const int height = 600;
 
 // TODO: nach Utilities oder GameLibrary verschieben
 std::string intToStr(int a) {
@@ -57,7 +68,28 @@ T distanceSq(XYPoint<T> a, XYPoint<T> b) {
     return (deltaX * deltaX + deltaY * deltaY);
 }
 
-int main() {
+void usage(char* argv[])
+{
+    std::cout << "Usage:" << std::endl << argv[0] << std::endl;
+    // TODO usage
+    std::exit(-1);
+}
+
+int main(int argc, char* argv[]) {
+    // Check if all necessary command line arguments were provided
+    if (argc < 2 || sdl::auxiliary::CommandLineParser::cmdOptionExists(argv, argv + argc, "-h"))
+        usage(argv);
+
+    std::string input;
+    if (sdl::auxiliary::CommandLineParser::cmdOptionExists(argv, argv + argc, "-i")) {
+        input = sdl::auxiliary::CommandLineParser::getCmdOption(argv, argv + argc, "-i");
+        sdl::auxiliary::CommandLineParser::normalizePath(input);
+        std::cout << "Input: " << input << std::endl;
+        // TODO: if png -> inputtype = image
+    }
+
+    
+
     // take records of frame number
     int frame = 0;
     // Framecap an oder ausschalten
@@ -87,7 +119,7 @@ int main() {
     // open the default camera
     //cv::VideoCapture capture(0);
     // open video file
-    cv::VideoCapture capture(video);
+    cv::VideoCapture capture(fvideo);
     if(!capture.isOpened()) {
         sdl::auxiliary::Utilities::logSDLError(std::cout, "VideoCapture");
         SDL_Quit();
@@ -97,16 +129,25 @@ int main() {
     // TODO: in Funktion auslagern
     // read image for the first time to get its dimensions
     cv::Mat img;
-    // read image from file
-    //img = cv::imread(image);
-    // get a new frame from camera
-    capture >> img;
-    cv::Rect crop(150, 50, img.cols - 2*150, img.rows - 150);
-    // Crop the full image to that image contained by the rectangle myROI
-    // Note that this doesn't copy the data
-    img = img(crop);
+    if (inputtype == InputType::image) {
+        // read image from file
+        img = cv::imread(fimage);
+    } else if (inputtype == InputType::video || inputtype == InputType::camera) {
+        // get a new frame from camera
+        capture >> img;
+        // TODO: if crop
+        cv::Rect crop(150, 50, img.cols - 2*150, img.rows - 150);
+        // Crop the full image to that image contained by the rectangle crop
+        img = img(crop);
+    }
     // sets the global variabls Renderer::screen_width and Renderer::screen_height
-    Renderer::setDimensions(img.cols, img.rows);
+    if (width == 0 && height == 0) {
+        // use the original dimensions
+        Renderer::setDimensions(img.cols, img.rows);
+    } else {
+        // use fixed dimensions
+        Renderer::setDimensions(width, height);
+    }
 
     // TODO: Window-Abmessungen automatisch gemäß den Abmessungen des eingelesenen Bildes setzen, sodass es immer ungefähr 900 * 600 hat
     // Set up our window and renderer, this time let's put our window in the center of the screen
@@ -120,14 +161,15 @@ int main() {
     // load the SDL renderer and set the screen dimensions
     SDL_Renderer *renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
     if (renderer == NULL) {
-        sdl::auxiliary::Utilities::logSDLError(std::cout, "SD_CreateRenderer");
+        sdl::auxiliary::Utilities::logSDLError(std::cout, "SDL_CreateRenderer");
         sdl::auxiliary::Utilities::cleanup(window);
         SDL_Quit();
         return -1;
     }
+    //SDL_RenderSetLogicalSize(renderer, Renderer::screen_width, Renderer::screen_height);
 
     // create a texture for displaying images
-    SDL_Texture* texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_BGR24, SDL_TEXTUREACCESS_STREAMING, Renderer::screen_width, Renderer::screen_height);
+    SDL_Texture* texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_BGR24, SDL_TEXTUREACCESS_STREAMING, img.cols, img.rows);
     if (renderer == NULL) {
         sdl::auxiliary::Utilities::logSDLError(std::cout, "SDL_CreateTexture");
         sdl::auxiliary::Utilities::cleanup(window, renderer);
@@ -225,7 +267,7 @@ int main() {
 #endif
 
     int rResolution = 1;
-    float thetaResolution = CV_PI / 360; // 0.5°
+    float thetaResolution = CV_PI / 180; // 1°
 
     // the event structure
     SDL_Event e;
@@ -306,13 +348,17 @@ int main() {
 #endif
 
         if (!pause) {
-            // Reading image
-            //cv::Mat img = cv::imread(image);
-            capture >> img;
-            cv::Rect crop(150, 50, img.cols - 2*150, img.rows - 150);
-            // Crop the full image to that image contained by the rectangle myROI
-            // Note that this doesn't copy the data
-            img = img(crop);
+            if (inputtype == InputType::image) {
+                // read image from file
+                img = cv::imread(fimage);
+            } else if (inputtype == InputType::video || inputtype == InputType::camera) {
+                // get a new frame from camera
+                capture >> img;
+                // TODO: if crop
+                cv::Rect crop(150, 50, img.cols - 2*150, img.rows - 150);
+                // Crop the full image to that image contained by the rectangle crop
+                img = img(crop);
+            }
         }
 #if OCVSTEP == 0
         cv::Mat display = img.clone();
@@ -366,11 +412,23 @@ int main() {
         cv::cvtColor(display, display, cv::COLOR_GRAY2RGB);
 #endif
 
+        // dilate the lines (thicken)
+        int dilationSize = 1;
+        int erosionType = cv::MORPH_ELLIPSE; // MORPH_RECT, MORPH_CROSS, MORPH_ELLIPSE
+        cv::Mat element = cv::getStructuringElement(erosionType, cv::Size(2*dilationSize + 1, 2*dilationSize+1), cv::Point(dilationSize, dilationSize));
+        cv::dilate(edges, edges, element);
+#if OCVSTEP == 5
+        cv::Mat display = edges.clone();
+        // convert to original color space, preserving content
+        cv::cvtColor(display, display, cv::COLOR_GRAY2RGB);
+#endif
+
+
         // probabilistic Hough Line Transform
         std::vector<cv::Vec4i> houghLines; // HoughLinesP: will hold the results of the detection
         HoughLinesP(edges, houghLines, rResolution, thetaResolution, interThreshold, minLineLength, maxLineGap); // runs the actual detection
         // sort the lines (TSP problem)
-        auxiliary::sortLines(houghLines);
+        Sort::sortLines(houghLines);
 
         // Draw the lines
         cv::Mat lines = edges.clone(); // copy to have a matrix with the right size
@@ -381,13 +439,13 @@ int main() {
         }
         // convert to original color space, preserving content
         cv::cvtColor(lines, lines, cv::COLOR_GRAY2RGB);
-#if OCVSTEP == 5
+#if OCVSTEP == 6
         cv::Mat display = lines.clone();
 #endif
 
         // use lines as mask and multiply original image with mask
         cv::bitwise_and(img, lines, lines);
-#if OCVSTEP == 6
+#if OCVSTEP == 7
         cv::Mat display = lines.clone();
 #endif
         // Draw the background black
@@ -397,7 +455,10 @@ int main() {
 #ifdef OCVSTEP
         // render the image
         SDL_UpdateTexture(texture, NULL, (void*)display.data, display.step1());
-        SDL_RenderCopy(renderer, texture, NULL, NULL);
+        SDL_Rect destRect = {0, 0, Renderer::screen_width, Renderer::screen_height};
+        //std::cout << destRect.w << ", " << destRect.h << std::endl;
+        SDL_RenderCopy(renderer, texture, NULL, &destRect);
+        //SDL_RenderCopyEx(renderer, texture, NULL, &destRect, 0, NULL, SDL_FLIP_NONE);
 #endif
 
         // apply the lines to the renderers
@@ -422,8 +483,14 @@ int main() {
                 green *= colorFactor;
                 red   *= colorFactor;
 
+                // TODO: DEBUG
+                blue = 255;
+                red = 255;
+                green = 0 * 255;
+
                 // Points for Laser output
-                if (distanceSq(XYPoint<int>({l[0], l[1]}), XYPoint<int>({lastLaser[0], lastLaser[1]})) > fillShortBlanks) {
+                // TODO: check implementation
+                if (std::sqrt(distanceSq(XYPoint<int>({l[0], l[1]}), XYPoint<int>({lastLaser[0], lastLaser[1]}))) > fillShortBlanks) {
                     // blank move
                     points.push_back({(float)lastLaser[0], (float)lastLaser[1], 0, 0, 0, 255, false});
                     points.push_back({(float)l[0], (float)l[1], 0, 0, 0, 255, false});
@@ -435,12 +502,15 @@ int main() {
                 lastLaser[0] = l[2];
                 lastLaser[1] = l[3];
 
-                // Points for SDL output
+                // Points for SDL output: Transform from original image dimensions to dimensions of the renderer's screen
                 l[0] = Renderer::transform(l[0], 0, img.cols, 0, Renderer::screen_width);
                 l[1] = Renderer::transform(l[1], 0, img.rows, 0, Renderer::screen_height);
                 l[2] = Renderer::transform(l[2], 0, img.cols, 0, Renderer::screen_width);
                 l[3] = Renderer::transform(l[3], 0, img.rows, 0, Renderer::screen_height);
-                if (blankMoves)
+                // TODO: fillShortBlanks should be different in the SDL renderer context
+                if (std::sqrt(distanceSq(XYPoint<int>({l[0], l[1]}), XYPoint<int>({lastSDL[0], lastSDL[1]}))) <= fillShortBlanks)
+                    lineRGBA(renderer, lastSDL[0], lastSDL[1], (int)l[0], (int)l[1], red, green, blue, 255);
+                else if (blankMoves)
                     lineRGBA(renderer, lastSDL[0], lastSDL[1], (int)l[0], (int)l[1], 0, 255, 255, 255); // blank move
                 lineRGBA(renderer, (int)l[0], (int)l[1], (int)l[2], (int)l[3], red, green, blue, 255);
                 // store the last SDL point

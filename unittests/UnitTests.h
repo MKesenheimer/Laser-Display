@@ -10,6 +10,8 @@ namespace unittests {
 
     void testLineDistanceSquare();
 
+    void testHoughLinesReinterpretCast();
+
     void testMinimalLineLineDistance();
 
     void testMinimalPointLineDistance();
