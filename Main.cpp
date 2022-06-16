@@ -31,34 +31,19 @@
 
 #include "unittests/UnitTests.h"
 
-#define OCVSTEP 5
+#define OCVSTEP 0
 #define MEASURETIME
 
-// TODO: read from command line
-const int FRAMES_PER_SECOND = 20; // Fps auf 20 festlegen
-const std::string fimage("images/doom-smallres.png");
-const std::string fvideo("videos/doom.mp4");
-// TODO: read from command line
+// InputType structure 
 enum InputType {
     image, video, camera
 };
-const InputType inputtype = InputType::image;
-// TODO: read from command line
-// TODO: if values are 0, use original values
-const int width = 960;
-const int height = 600;
 
 // TODO: nach Utilities oder GameLibrary verschieben
 std::string intToStr(int a) {
     std::stringstream ss;
     ss << a;
     return ss.str();
-}
-
-// TODO: nach Utilities oder GameLibrary verschieben
-template<typename T> 
-T constrain(T value, T min, T max) {
-    return std::min(std::max(value, min), max);
 }
 
 template<typename T> 
@@ -68,11 +53,30 @@ T distanceSq(XYPoint<T> a, XYPoint<T> b) {
     return (deltaX * deltaX + deltaY * deltaY);
 }
 
-void usage(char* argv[])
-{
+void usage(char* argv[]) {
     std::cout << "Usage:" << std::endl << argv[0] << std::endl;
     // TODO usage
+
     std::exit(-1);
+}
+
+
+cv::Mat readInputSource(const std::string& input, cv::VideoCapture& capture, InputType inputtype, const std::array<int, 4>& cropDim) {
+    cv::Mat img;
+    if (inputtype == InputType::image) {
+        // read image from file
+        img = cv::imread(input);
+    } else if (inputtype == InputType::video || inputtype == InputType::camera) {
+        // get a new frame from camera
+        capture >> img;
+        
+        if (cropDim[0] != 0 || cropDim[1] != 0 || cropDim[2] != 0 || cropDim[3] != 0) {
+            // Crop the full image to that image contained by the rectangle crop
+            cv::Rect crop(cropDim[0], cropDim[1], img.cols - cropDim[0] - cropDim[2], img.rows - cropDim[1] - cropDim[3]);
+            img = img(crop);
+        }
+    }
+    return img;
 }
 
 int main(int argc, char* argv[]) {
@@ -80,15 +84,50 @@ int main(int argc, char* argv[]) {
     if (argc < 2 || sdl::auxiliary::CommandLineParser::cmdOptionExists(argv, argv + argc, "-h"))
         usage(argv);
 
-    std::string input;
-    if (sdl::auxiliary::CommandLineParser::cmdOptionExists(argv, argv + argc, "-i")) {
-        input = sdl::auxiliary::CommandLineParser::getCmdOption(argv, argv + argc, "-i");
-        sdl::auxiliary::CommandLineParser::normalizePath(input);
-        std::cout << "Input: " << input << std::endl;
-        // TODO: if png -> inputtype = image
+    // read input file
+    const std::string input = sdl::auxiliary::CommandLineParser::readCmdNormalized(argv, argv + argc, "-i");
+    if (input == std::string()) {
+        std::cout << "Error: no input given." << std::endl;
+        usage(argv);
+    }
+    std::cout << "Input: " << input << std::endl;
+
+    // determine input type
+    InputType inputtype = InputType::image;
+    if (input == "camera") {
+        inputtype = InputType::camera;
+    } else {
+        std::string suffix = input.substr(input.size() - 3);
+        std::transform(suffix.begin(), suffix.end(), suffix.begin(), ::tolower);
+        if (suffix == "png" || suffix == "jpg" || suffix == "jpeg") {
+            inputtype = InputType::image;
+            std::cout << "Input type: image" << std::endl;
+        } else if (suffix == "mp4") {
+            inputtype = InputType::video;
+            std::cout << "Input type: video" << std::endl;
+        } else {
+            std::cout << "Error: Data type unknown." << std::endl;
+            usage(argv);
+        }
     }
 
-    
+    // read max FPS
+    const int maxFramesPerSecond = sdl::auxiliary::CommandLineParser::readCmdInt(argv, argv + argc, "-f", 1, 100);
+    std::cout << "max FPS: " << maxFramesPerSecond << std::endl;
+
+    // screen dimensions
+    const int width = sdl::auxiliary::CommandLineParser::readCmdInt(argv, argv + argc, "-x", 0, 2000);
+    const int height = sdl::auxiliary::CommandLineParser::readCmdInt(argv, argv + argc, "-y", 0, 2000);
+    if (width == 0 && height == 0) {
+        std::cout << "Using original dimensions of input source." << std::endl;
+    } else {
+        std::cout << "Screen width: " << width << std::endl;
+        std::cout << "Screen height: " << height << std::endl;
+    }
+
+    // TODO: read in crop size:
+    std::array<int, 4> crop = {150, 50, 150, 100};
+
 
     // take records of frame number
     int frame = 0;
@@ -110,36 +149,31 @@ int main(int argc, char* argv[]) {
         return -1;
     }
 
-    //Start up SDL and make sure it went ok
-    if (SDL_Init(SDL_INIT_VIDEO) != 0){
+    // Start up SDL and make sure it went ok
+    if (SDL_Init(SDL_INIT_VIDEO) != 0) {
         sdl::auxiliary::Utilities::logSDLError(std::cout, "SDL_Init");
         return -1;
     }
-
-    // open the default camera
-    //cv::VideoCapture capture(0);
-    // open video file
-    cv::VideoCapture capture(fvideo);
-    if(!capture.isOpened()) {
-        sdl::auxiliary::Utilities::logSDLError(std::cout, "VideoCapture");
-        SDL_Quit();
-        return 1;
+    
+    // initialize video or camera input
+    cv::VideoCapture capture = cv::VideoCapture();
+    if (inputtype == camera) {
+        // open the default camera
+        capture.open(0);
+    } else if (inputtype == video) {
+        // open video file
+        capture.open(input);
+    }
+    if (inputtype == video || inputtype == camera) {
+        if (!capture.isOpened()) {
+            sdl::auxiliary::Utilities::logSDLError(std::cout, "VideoCapture");
+            SDL_Quit();
+            return 1;
+        }
     }
 
-    // TODO: in Funktion auslagern
     // read image for the first time to get its dimensions
-    cv::Mat img;
-    if (inputtype == InputType::image) {
-        // read image from file
-        img = cv::imread(fimage);
-    } else if (inputtype == InputType::video || inputtype == InputType::camera) {
-        // get a new frame from camera
-        capture >> img;
-        // TODO: if crop
-        cv::Rect crop(150, 50, img.cols - 2*150, img.rows - 150);
-        // Crop the full image to that image contained by the rectangle crop
-        img = img(crop);
-    }
+    cv::Mat img = readInputSource(input, capture, inputtype, crop);
     // sets the global variabls Renderer::screen_width and Renderer::screen_height
     if (width == 0 && height == 0) {
         // use the original dimensions
@@ -204,6 +238,7 @@ int main(int argc, char* argv[]) {
         }
     }
 
+    // TODO: read these parameters from the command line
     LumaxRenderer lumaxRenderer;
     lumaxRenderer.mirrorFactX = -1;
     lumaxRenderer.mirrorFactY = 1;
@@ -217,7 +252,9 @@ int main(int argc, char* argv[]) {
     bool quit = false;
     bool pause = false;
     bool blankMoves = false;
+
     // opencv specific
+    // TODO: set these parameters as global parameters in order to modify them with the function checkParameters()
 #if 0
     // doom picture
     int fillShortBlanks = 0;
@@ -289,6 +326,7 @@ int main(int argc, char* argv[]) {
         }
 
         // handle keyboard inputs (no lags and delays!)
+        // TODO: als Funktion auslagern: checkParameters()
         const uint8_t* keystate = SDL_GetKeyboardState(NULL);
         if (keystate[SDL_SCANCODE_B]) {
             blankMoves = !blankMoves;
@@ -348,17 +386,7 @@ int main(int argc, char* argv[]) {
 #endif
 
         if (!pause) {
-            if (inputtype == InputType::image) {
-                // read image from file
-                img = cv::imread(fimage);
-            } else if (inputtype == InputType::video || inputtype == InputType::camera) {
-                // get a new frame from camera
-                capture >> img;
-                // TODO: if crop
-                cv::Rect crop(150, 50, img.cols - 2*150, img.rows - 150);
-                // Crop the full image to that image contained by the rectangle crop
-                img = img(crop);
-            }
+            img = readInputSource(input, capture, inputtype, crop);
         }
 #if OCVSTEP == 0
         cv::Mat display = img.clone();
@@ -468,12 +496,12 @@ int main(int argc, char* argv[]) {
         int lastSDL[2] = {Renderer::screen_width / 2, Renderer::screen_height / 2};
         for(size_t i = 0; i < houghLines.size(); ++i) {
             cv::Vec4i l = houghLines[i];
-            cv::Vec3b intensity1 = lines.at<cv::Vec3b>(cv::Point(constrain<int>(l[0], 0, lines.cols - 1), constrain<int>(l[1], 0, lines.rows - 1)));
-            cv::Vec3b intensity2 = lines.at<cv::Vec3b>(cv::Point(constrain<int>(l[2], 0, lines.cols - 1), constrain<int>(l[3], 0, lines.rows - 1)));
+            cv::Vec3b intensity1 = lines.at<cv::Vec3b>(cv::Point(sdl::auxiliary::Utilities::constrain<int>(l[0], 0, lines.cols - 1), sdl::auxiliary::Utilities::constrain<int>(l[1], 0, lines.rows - 1)));
+            cv::Vec3b intensity2 = lines.at<cv::Vec3b>(cv::Point(sdl::auxiliary::Utilities::constrain<int>(l[2], 0, lines.cols - 1), sdl::auxiliary::Utilities::constrain<int>(l[3], 0, lines.rows - 1)));
             
-            int blue  = constrain<int>((intensity1.val[0] + intensity2.val[0]) / 2, 0, 255);
-            int green = constrain<int>((intensity1.val[1] + intensity2.val[1]) / 2, 0, 255);
-            int red   = constrain<int>((intensity1.val[2] + intensity2.val[2]) / 2, 0, 255);
+            int blue  = sdl::auxiliary::Utilities::constrain<int>((intensity1.val[0] + intensity2.val[0]) / 2, 0, 255);
+            int green = sdl::auxiliary::Utilities::constrain<int>((intensity1.val[1] + intensity2.val[1]) / 2, 0, 255);
+            int red   = sdl::auxiliary::Utilities::constrain<int>((intensity1.val[2] + intensity2.val[2]) / 2, 0, 255);
 
             // sort out dark lines
             if ((blue + green + red) >= lightThreshold) {
@@ -484,9 +512,9 @@ int main(int argc, char* argv[]) {
                 red   *= colorFactor;
 
                 // TODO: DEBUG
-                blue = 255;
+                /*blue = 255;
                 red = 255;
-                green = 0 * 255;
+                green = 0 * 255;*/
 
                 // Points for Laser output
                 // TODO: check implementation
@@ -565,8 +593,8 @@ int main(int argc, char* argv[]) {
         // increment the frame number
         frame++;
         // apply the fps cap
-        if ((cap == true) && (fps.getTicks() < 1000 / FRAMES_PER_SECOND) ) {
-            SDL_Delay((1000 / FRAMES_PER_SECOND) - fps.getTicks() );
+        if ((cap == true) && (fps.getTicks() < 1000 / maxFramesPerSecond) ) {
+            SDL_Delay((1000 / maxFramesPerSecond) - fps.getTicks() );
         }
     }
 
