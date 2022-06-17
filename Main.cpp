@@ -25,17 +25,83 @@
 #define OCVSTEP 0
 #define MEASURETIME
 
+// opencv specific
+struct Parameters {
+    int fillShortBlanks = 10;
+    int lightThreshold = 50;
+    int interThreshold = 10;
+    int minLineLength = 0;
+    int maxLineGap = 4;
+    int blursize = 17;
+    int upperThreshold = 30;
+    int lowerThreshold = 10;
+    int rResolution = 1;
+    float thetaResolution = 10 * CV_PI / 180; // 10°
+    bool blankMoves = false;
+    bool doColorCorrection = false;
+    bool colorBoost = true;
+};
+
+void handleKeyPress(Parameters& parameters) {
+    // handle keyboard inputs (no lags and delays!)
+    const uint8_t* keystate = SDL_GetKeyboardState(NULL);
+    if (keystate[SDL_SCANCODE_B]) {
+        parameters.blankMoves = !parameters.blankMoves;
+    }
+    if (keystate[SDL_SCANCODE_W]) {
+        parameters.fillShortBlanks++;
+    }
+    if (keystate[SDL_SCANCODE_S]) {
+        parameters.fillShortBlanks = (parameters.fillShortBlanks >= 2 ? parameters.fillShortBlanks - 1 : parameters.fillShortBlanks);
+    }
+    if (keystate[SDL_SCANCODE_E]) {
+        parameters.lightThreshold++;
+    }
+    if (keystate[SDL_SCANCODE_D]) {
+        parameters.lightThreshold = (parameters.lightThreshold >= 2 ? parameters.lightThreshold - 1 : parameters.lightThreshold);
+    }
+    if (keystate[SDL_SCANCODE_R]) {
+        parameters.interThreshold++;
+    }
+    if (keystate[SDL_SCANCODE_F]) {
+        parameters.interThreshold = (parameters.interThreshold >= 1 ? parameters.interThreshold - 1 : parameters.interThreshold);
+    }
+    if (keystate[SDL_SCANCODE_T]) {
+        parameters.minLineLength++;
+    }
+    if (keystate[SDL_SCANCODE_G]) {
+        parameters.minLineLength = (parameters.minLineLength >= 1 ? parameters.minLineLength - 1 : parameters.minLineLength);   
+    }
+    if (keystate[SDL_SCANCODE_Y]) {
+        parameters.maxLineGap++;
+    }
+    if (keystate[SDL_SCANCODE_H]) {
+        parameters.maxLineGap = (parameters.maxLineGap >= 1 ? parameters.maxLineGap - 1 : parameters.maxLineGap);
+    }
+    if (keystate[SDL_SCANCODE_U]) {
+        parameters.blursize += 2;
+    }
+    if (keystate[SDL_SCANCODE_J]) {
+        parameters.blursize = (parameters.blursize >= 3 ? parameters.blursize - 2 : parameters.blursize);
+    }
+    if (keystate[SDL_SCANCODE_I]) {
+        parameters.upperThreshold++;
+    }
+    if (keystate[SDL_SCANCODE_K]) {
+        parameters.upperThreshold = (parameters.upperThreshold >= 1 ? parameters.upperThreshold - 1 : parameters.upperThreshold);
+    }
+    if (keystate[SDL_SCANCODE_O]) {
+        parameters.lowerThreshold = (parameters.lowerThreshold < parameters.upperThreshold ? parameters.lowerThreshold + 1 : parameters.upperThreshold - 1);
+    }
+    if (keystate[SDL_SCANCODE_L]) {
+        parameters.lowerThreshold = (parameters.lowerThreshold >= 1 ? parameters.lowerThreshold - 1 : parameters.lowerThreshold);
+    }
+}
+
 // InputType structure 
 enum InputType {
     image, video, camera
 };
-
-// TODO: nach Utilities oder GameLibrary verschieben
-std::string intToStr(int a) {
-    std::stringstream ss;
-    ss << a;
-    return ss.str();
-}
 
 template<typename T> 
 T distanceSq(XYPoint<T> a, XYPoint<T> b) {
@@ -56,7 +122,6 @@ void usage(char* argv[]) {
     std::exit(-1);
 }
 
-
 cv::Mat readInputSource(const std::string& input, cv::VideoCapture& capture, InputType inputtype, std::array<int, 4> cropDim) {
     cv::Mat img;
     if (inputtype == InputType::image) {
@@ -67,10 +132,10 @@ cv::Mat readInputSource(const std::string& input, cv::VideoCapture& capture, Inp
         capture >> img;
     
         if (cropDim[0] != 0 || cropDim[1] != 0 || cropDim[2] != 0 || cropDim[3] != 0) {
-            cropDim[0] = sdl::auxiliary::Utilities::constrain(cropDim[0], 0, img.cols / 2);
-            cropDim[1] = sdl::auxiliary::Utilities::constrain(cropDim[1], 0, img.rows / 2);
-            cropDim[2] = sdl::auxiliary::Utilities::constrain(cropDim[2], 0, img.cols / 2);
-            cropDim[3] = sdl::auxiliary::Utilities::constrain(cropDim[3], 0, img.rows / 2);
+            cropDim[0] = Algorithms::constrain(cropDim[0], 0, img.cols / 2);
+            cropDim[1] = Algorithms::constrain(cropDim[1], 0, img.rows / 2);
+            cropDim[2] = Algorithms::constrain(cropDim[2], 0, img.cols / 2);
+            cropDim[3] = Algorithms::constrain(cropDim[3], 0, img.rows / 2);
             // Crop the full image to that image contained by the rectangle crop
             cv::Rect crop(cropDim[0], cropDim[1], img.cols - cropDim[0] - cropDim[2], img.rows - cropDim[1] - cropDim[3]);
             img = img(crop);
@@ -79,10 +144,94 @@ cv::Mat readInputSource(const std::string& input, cv::VideoCapture& capture, Inp
     return img;
 }
 
+#if LUMAX_OUTPUT
+void colorCorrection(void* lumaxHandle, LumaxRenderer& ren) {
+    sdl::auxiliary::Timer fps;
+    SDL_Event e;
+    bool done = false;
+    bool quit = false;
+    int step = 0;
+    while (!done && !quit) {
+        fps.start();
+        // read any events that occured, for now we'll just quit if any event occurs
+        while (SDL_PollEvent(&e)) {
+            // if user closes the window
+            if (e.type == SDL_QUIT)
+                quit = true;
+            // if user presses any key
+            else if (e.type == SDL_KEYDOWN)
+                if (e.key.keysym.sym == SDLK_SPACE)
+                    step++;
+        }
+
+        int r = 0, g = 0, b = 0;
+        switch(step) {
+            case 0:
+                r = 85;
+                g = 85;
+                b = 85;
+                break;
+            case 1:
+                r = 100;
+                g = 100;
+                b = 100;
+                break;
+            case 2:
+                r = 170;
+                g = 170;
+                b = 170;
+                break;
+            case 3:
+                r = 255;
+                g = 255;
+                b = 255;
+                break;
+        }
+
+        // TODO: modify this with keyboard inputs
+        // TODO: let the user decide when the output is "white".
+        //       use linear algebra to fit the found values to the color correction values.
+        ren.colorCorr.ar = 0;
+        ren.colorCorr.br = 0.9;
+        ren.colorCorr.cr = 1;
+
+        ren.colorCorr.ag = 0;
+        ren.colorCorr.bg = 1.0;
+        ren.colorCorr.cg = 0;
+
+        ren.colorCorr.ab = 0;
+        ren.colorCorr.bb = 0.95;
+        ren.colorCorr.cb = 20;
+
+        std::cout << "step " << step << ": (r, g, b) = (" << r << ", " << g << ", " << b << ")" << std::endl;
+        std::vector<Point<float>> points;
+        points.push_back({ 100,  100,   0,   0,   0, 255, false});
+        points.push_back({ 100,  100, r, g, b, 255, false});
+        points.push_back({-100,  100, r, g, b, 255, false});
+        points.push_back({-100, -100, r, g, b, 255, false});
+        points.push_back({ 100, -100, r, g, b, 255, false});
+        points.push_back({ 100,  100, r, g, b, 255, false});
+        Renderer::drawPoints(points, ren);
+        Renderer::sendPointsToLumax(lumaxHandle, ren, 200);
+
+        // apply the fps cap
+        if (fps.getTicks() < 1000 / 10) {
+            SDL_Delay((1000 / 10) - fps.getTicks() );
+        }
+    }
+}
+#endif
+
 int main(int argc, char* argv[]) {
+    // global Parameters
+    Parameters parameters;
+
     // Check if all necessary command line arguments were provided
     if (argc < 2 || sdl::auxiliary::CommandLineParser::cmdOptionExists(argv, argv + argc, "-h"))
         usage(argv);
+
+    if (sdl::auxiliary::CommandLineParser::cmdOptionExists(argv, argv + argc, "-q"))
+        parameters.doColorCorrection = true;
 
     // read input file
     const std::string input = sdl::auxiliary::CommandLineParser::readCmdNormalized(argv, argv + argc, "-i");
@@ -112,12 +261,12 @@ int main(int argc, char* argv[]) {
     }
 
     // read max FPS
-    const int maxFramesPerSecond = sdl::auxiliary::CommandLineParser::readCmdInt(argv, argv + argc, "-f", 1, 100);
+    const int maxFramesPerSecond = sdl::auxiliary::CommandLineParser::readCmdOption<int>(argv, argv + argc, "-f", 1, 100);
     std::cout << "max FPS: " << maxFramesPerSecond << std::endl;
 
     // screen dimensions
-    const int width = sdl::auxiliary::CommandLineParser::readCmdInt(argv, argv + argc, "-x", 0, INT_MAX);
-    const int height = sdl::auxiliary::CommandLineParser::readCmdInt(argv, argv + argc, "-y", 0, INT_MAX);
+    const int width = sdl::auxiliary::CommandLineParser::readCmdOption<int>(argv, argv + argc, "-x", 0, INT_MAX);
+    const int height = sdl::auxiliary::CommandLineParser::readCmdOption<int>(argv, argv + argc, "-y", 0, INT_MAX);
     if (width == 0 && height == 0) {
         std::cout << "Using original dimensions of input source." << std::endl;
     } else {
@@ -127,12 +276,14 @@ int main(int argc, char* argv[]) {
 
     // read in crop size:
     std::array<int, 4> crop = {0, 0, 0, 0};
-    std::vector<int> cropv = sdl::auxiliary::CommandLineParser::readCmdListInt(argv, argv + argc, "-c", 0, INT_MAX);
+    std::vector<int> cropv = sdl::auxiliary::CommandLineParser::readCmdOptionList<int>(argv, argv + argc, "-c", 0, INT_MAX);
     if (cropv.size() == 4) {
         for (size_t i = 0; i < cropv.size(); ++i)
             crop[i] = cropv[i];
         std::cout << "Crop size: (" << crop[0] << ", " << crop[1] << ", " << crop[2] << ", " << crop[3] << ")" << std::endl;
     }
+
+    // TODO: read in Lumax Renderer options from stdin
 
 
     // take records of frame number
@@ -252,69 +403,18 @@ int main(int argc, char* argv[]) {
     lumaxRenderer.scalingX = 0.2;
     lumaxRenderer.scalingY = 0.15;
     lumaxRenderer.swapXY = 0;
+
+    if (parameters.doColorCorrection == true)
+        colorCorrection(lumaxHandle, lumaxRenderer);
 #endif
 
     // logic
     bool quit = false;
     bool pause = false;
-    bool blankMoves = false;
-
-    // opencv specific
-    // TODO: set these parameters as global parameters in order to modify them with the function checkParameters()
-#if 0
-    // doom picture
-    int fillShortBlanks = 0;
-    int lightThreshold = 50;
-    int interThreshold = 40;
-    int minLineLength = 0;
-    int maxLineGap = 10;
-    int blursize = 7;
-    int upperThreshold = 300;
-    int lowerThreshold = 200;
-#endif
-
-#if 0
-    // zoidberg
-    int fillShortBlanks = 50;
-    int lightThreshold = 1;
-    int interThreshold = 10;
-    int minLineLength = 3;
-    int maxLineGap = 1;
-    int blursize = 9;
-    int upperThreshold = 100;
-    int lowerThreshold = 200;
-#endif
-
-#if 0
-    // video capture
-    int fillShortBlanks = 0;
-    int lightThreshold = 50;
-    int interThreshold = 30;
-    int minLineLength = 0;
-    int maxLineGap = 5;
-    int blursize = 19;
-    int upperThreshold = 30;
-    int lowerThreshold = 10;
-#endif
-
-#if 1
-    // doom video capture
-    int fillShortBlanks = 10;
-    int lightThreshold = 50;
-    int interThreshold = 10;
-    int minLineLength = 0;
-    int maxLineGap = 4;
-    int blursize = 17;
-    int upperThreshold = 30;
-    int lowerThreshold = 10;
-#endif
-
-    int rResolution = 1;
-    float thetaResolution = CV_PI / 180; // 1°
 
     // the event structure
     SDL_Event e;
-    while (!quit){
+    while (!quit) {
         // start the fps timer
         fps.start();
 
@@ -331,60 +431,7 @@ int main(int argc, char* argv[]) {
                     pause = !pause;
         }
 
-        // handle keyboard inputs (no lags and delays!)
-        // TODO: als Funktion auslagern: checkParameters()
-        const uint8_t* keystate = SDL_GetKeyboardState(NULL);
-        if (keystate[SDL_SCANCODE_B]) {
-            blankMoves = !blankMoves;
-        }
-        if (keystate[SDL_SCANCODE_W]) {
-            fillShortBlanks++;
-        }
-        if (keystate[SDL_SCANCODE_S]) {
-            fillShortBlanks = (fillShortBlanks >= 2 ? fillShortBlanks - 1 : fillShortBlanks);
-        }
-        if (keystate[SDL_SCANCODE_E]) {
-            lightThreshold++;
-        }
-        if (keystate[SDL_SCANCODE_D]) {
-            lightThreshold = (lightThreshold >= 2 ? lightThreshold - 1 : lightThreshold);
-        }
-        if (keystate[SDL_SCANCODE_R]) {
-            interThreshold++;
-        }
-        if (keystate[SDL_SCANCODE_F]) {
-            interThreshold = (interThreshold >= 1 ? interThreshold - 1 : interThreshold);
-        }
-        if (keystate[SDL_SCANCODE_T]) {
-            minLineLength++;
-        }
-        if (keystate[SDL_SCANCODE_G]) {
-            minLineLength = (minLineLength >= 1 ? minLineLength - 1 : minLineLength);   
-        }
-        if (keystate[SDL_SCANCODE_Y]) {
-            maxLineGap++;
-        }
-        if (keystate[SDL_SCANCODE_H]) {
-            maxLineGap = (maxLineGap >= 1 ? maxLineGap - 1 : maxLineGap);
-        }
-        if (keystate[SDL_SCANCODE_U]) {
-            blursize += 2;
-        }
-        if (keystate[SDL_SCANCODE_J]) {
-            blursize = (blursize >= 3 ? blursize - 2 : blursize);
-        }
-        if (keystate[SDL_SCANCODE_I]) {
-            upperThreshold++;
-        }
-        if (keystate[SDL_SCANCODE_K]) {
-            upperThreshold = (upperThreshold >= 1 ? upperThreshold - 1 : upperThreshold);
-        }
-        if (keystate[SDL_SCANCODE_O]) {
-            lowerThreshold = (lowerThreshold < upperThreshold ? lowerThreshold + 1 : upperThreshold - 1);
-        }
-        if (keystate[SDL_SCANCODE_L]) {
-            lowerThreshold = (lowerThreshold >= 1 ? lowerThreshold - 1 : lowerThreshold);
-        }
+        handleKeyPress(parameters);
 
 #ifdef MEASURETIME
         // measure time
@@ -423,7 +470,7 @@ int main(int argc, char* argv[]) {
 
         // Blur the image for better edge detection
         cv::Mat img_blur;
-        cv::GaussianBlur(img, img_blur, cv::Size(blursize, blursize), 0);
+        cv::GaussianBlur(img, img_blur, cv::Size(parameters.blursize, parameters.blursize), 0);
 #if OCVSTEP == 2
         cv::Mat display = img_blur.clone();
 #endif
@@ -439,7 +486,7 @@ int main(int argc, char* argv[]) {
 
         // Canny edge detection
         cv::Mat edges;
-        cv::Canny(img_gray, edges, lowerThreshold, upperThreshold, 3, false);
+        cv::Canny(img_gray, edges, parameters.lowerThreshold, parameters.upperThreshold, 3, false);
 #if OCVSTEP == 4
         cv::Mat display = edges.clone();
         // convert to original color space, preserving content
@@ -460,7 +507,7 @@ int main(int argc, char* argv[]) {
 
         // probabilistic Hough Line Transform
         std::vector<cv::Vec4i> houghLines; // HoughLinesP: will hold the results of the detection
-        HoughLinesP(edges, houghLines, rResolution, thetaResolution, interThreshold, minLineLength, maxLineGap); // runs the actual detection
+        HoughLinesP(edges, houghLines, parameters.rResolution, parameters.thetaResolution, parameters.interThreshold, parameters.minLineLength, parameters.maxLineGap);
         // sort the lines (TSP problem)
         Sort::sortLines(houghLines);
 
@@ -502,20 +549,22 @@ int main(int argc, char* argv[]) {
         int lastSDL[2] = {Renderer::screen_width / 2, Renderer::screen_height / 2};
         for(size_t i = 0; i < houghLines.size(); ++i) {
             cv::Vec4i l = houghLines[i];
-            cv::Vec3b intensity1 = lines.at<cv::Vec3b>(cv::Point(sdl::auxiliary::Utilities::constrain<int>(l[0], 0, lines.cols - 1), sdl::auxiliary::Utilities::constrain<int>(l[1], 0, lines.rows - 1)));
-            cv::Vec3b intensity2 = lines.at<cv::Vec3b>(cv::Point(sdl::auxiliary::Utilities::constrain<int>(l[2], 0, lines.cols - 1), sdl::auxiliary::Utilities::constrain<int>(l[3], 0, lines.rows - 1)));
+            cv::Vec3b intensity1 = lines.at<cv::Vec3b>(cv::Point(Algorithms::constrain<int>(l[0], 0, lines.cols - 1), Algorithms::constrain<int>(l[1], 0, lines.rows - 1)));
+            cv::Vec3b intensity2 = lines.at<cv::Vec3b>(cv::Point(Algorithms::constrain<int>(l[2], 0, lines.cols - 1), Algorithms::constrain<int>(l[3], 0, lines.rows - 1)));
             
-            int blue  = sdl::auxiliary::Utilities::constrain<int>((intensity1.val[0] + intensity2.val[0]) / 2, 0, 255);
-            int green = sdl::auxiliary::Utilities::constrain<int>((intensity1.val[1] + intensity2.val[1]) / 2, 0, 255);
-            int red   = sdl::auxiliary::Utilities::constrain<int>((intensity1.val[2] + intensity2.val[2]) / 2, 0, 255);
+            int blue  = Algorithms::constrain<int>((intensity1.val[0] + intensity2.val[0]) / 2, 0, 255);
+            int green = Algorithms::constrain<int>((intensity1.val[1] + intensity2.val[1]) / 2, 0, 255);
+            int red   = Algorithms::constrain<int>((intensity1.val[2] + intensity2.val[2]) / 2, 0, 255);
 
             // sort out dark lines
-            if ((blue + green + red) >= lightThreshold) {
-                // TODO: implement color correction function
-                float colorFactor = 255 / std::max(blue, std::max(green, red));
-                blue  *= colorFactor;
-                green *= colorFactor;
-                red   *= colorFactor;
+            if ((blue + green + red) >= parameters.lightThreshold) {
+                // color boost
+                if (parameters.colorBoost) {
+                    float colorFactor = 255 / std::max(blue, std::max(green, red));
+                    blue  *= colorFactor;
+                    green *= colorFactor;
+                    red   *= colorFactor;
+                }
 
                 // TODO: DEBUG
                 /*blue = 255;
@@ -523,8 +572,7 @@ int main(int argc, char* argv[]) {
                 green = 0 * 255;*/
 
                 // Points for Laser output
-                // TODO: check implementation
-                if (std::sqrt(distanceSq(XYPoint<int>({l[0], l[1]}), XYPoint<int>({lastLaser[0], lastLaser[1]}))) > fillShortBlanks) {
+                if (std::sqrt(distanceSq(XYPoint<int>({l[0], l[1]}), XYPoint<int>({lastLaser[0], lastLaser[1]}))) > parameters.fillShortBlanks) {
                     // blank move
                     points.push_back({(float)lastLaser[0], (float)lastLaser[1], 0, 0, 0, 255, false});
                     points.push_back({(float)l[0], (float)l[1], 0, 0, 0, 255, false});
@@ -542,9 +590,9 @@ int main(int argc, char* argv[]) {
                 l[2] = Renderer::transform(l[2], 0, img.cols, 0, Renderer::screen_width);
                 l[3] = Renderer::transform(l[3], 0, img.rows, 0, Renderer::screen_height);
                 // TODO: fillShortBlanks should be different in the SDL renderer context
-                if (std::sqrt(distanceSq(XYPoint<int>({l[0], l[1]}), XYPoint<int>({lastSDL[0], lastSDL[1]}))) <= fillShortBlanks)
+                if (std::sqrt(distanceSq(XYPoint<int>({l[0], l[1]}), XYPoint<int>({lastSDL[0], lastSDL[1]}))) <= parameters.fillShortBlanks)
                     lineRGBA(renderer, lastSDL[0], lastSDL[1], (int)l[0], (int)l[1], red, green, blue, 255);
-                else if (blankMoves)
+                else if (parameters.blankMoves)
                     lineRGBA(renderer, lastSDL[0], lastSDL[1], (int)l[0], (int)l[1], 0, 255, 255, 255); // blank move
                 lineRGBA(renderer, (int)l[0], (int)l[1], (int)l[2], (int)l[3], red, green, blue, 255);
                 // store the last SDL point
@@ -568,23 +616,23 @@ int main(int argc, char* argv[]) {
 #endif
 
         // build text for displaying values
-        std::string str = "FPS: " +  intToStr(1000.0f * frame / worldtime.getTicks());
+        std::string str = "FPS: " +  Algorithms::typeToStr<int>(1000.0f * frame / worldtime.getTicks());
         sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 25);
-        str = "(w+, s-): General: fill shorts = " + intToStr(fillShortBlanks);
+        str = "(w+, s-): General: fill shorts = " + Algorithms::typeToStr<int>(parameters.fillShortBlanks);
         sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 50);
-        str = "(e+, d-): General: Light threshold = " + intToStr(lightThreshold);
+        str = "(e+, d-): General: Light threshold = " + Algorithms::typeToStr<int>(parameters.lightThreshold);
         sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 75);
-        str = "(r+, f-): Line detection: Intersection threshold = " + intToStr(interThreshold);
+        str = "(r+, f-): Line detection: Intersection threshold = " + Algorithms::typeToStr<int>(parameters.interThreshold);
         sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 100);
-        str = "(t+, g-): Line detection: Min line length = " + intToStr(minLineLength);
+        str = "(t+, g-): Line detection: Min line length = " + Algorithms::typeToStr<int>(parameters.minLineLength);
         sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 125);
-        str = "(z+, h-): Line detection: Max line gap = " + intToStr(maxLineGap);
+        str = "(z+, h-): Line detection: Max line gap = " + Algorithms::typeToStr<int>(parameters.maxLineGap);
         sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 150);
-        str = "(u+, j-): Blurring: Blur size = " + intToStr(blursize);
+        str = "(u+, j-): Blurring: Blur size = " + Algorithms::typeToStr<int>(parameters.blursize);
         sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 175);
-        str = "(i+, k-): Edge Detection: Upper threshold = " + intToStr(upperThreshold);
+        str = "(i+, k-): Edge Detection: Upper threshold = " + Algorithms::typeToStr<int>(parameters.upperThreshold);
         sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 200);
-        str = "(o+, l-): Edge Detection: Lower threshold = " + intToStr(lowerThreshold);
+        str = "(o+, l-): Edge Detection: Lower threshold = " + Algorithms::typeToStr<int>(parameters.lowerThreshold);
         sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 225);
 
        // FPS
