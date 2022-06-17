@@ -1,12 +1,3 @@
-// sudo port install opencv4 eigen
-// add 
-//    export PKG_CONFIG_PATH="/opt/local/lib/opencv4/pkgconfig":$PKG_CONFIG_PATH
-// to your shell profile.
-//
-// compile: 
-//    g++ -std=c++17 $(pkg-config --cflags --libs opencv4) laser-display.cpp -o laser-display
-
-
 #include <opencv2/opencv.hpp>
 #include <opencv2/imgproc.hpp>
 #include <iostream>
@@ -54,8 +45,13 @@ T distanceSq(XYPoint<T> a, XYPoint<T> b) {
 }
 
 void usage(char* argv[]) {
-    std::cout << "Usage:" << std::endl << argv[0] << std::endl;
-    // TODO usage
+    std::cout << "Usage:" << std::endl << argv[0] << "-i <path/filename> [options]" << std::endl;
+    std::cout << "Options:" << std::endl;
+    std::cout << "-h                                                   display help message" << std::endl;
+    std::cout << "-i <path/filename>                                   input file to render" << std::endl;
+    std::cout << "-x <width>                                           display width" << std::endl;
+    std::cout << "-y <height>                                          display height" << std::endl;
+    std::cout << "-c <crop-left>,<crop-up>,<crop-right>,<crop-down>    crop dimensions" << std::endl;
 
     std::exit(-1);
 }
