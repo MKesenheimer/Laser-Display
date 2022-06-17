@@ -61,7 +61,7 @@ void usage(char* argv[]) {
 }
 
 
-cv::Mat readInputSource(const std::string& input, cv::VideoCapture& capture, InputType inputtype, const std::array<int, 4>& cropDim) {
+cv::Mat readInputSource(const std::string& input, cv::VideoCapture& capture, InputType inputtype, std::array<int, 4> cropDim) {
     cv::Mat img;
     if (inputtype == InputType::image) {
         // read image from file
@@ -69,8 +69,12 @@ cv::Mat readInputSource(const std::string& input, cv::VideoCapture& capture, Inp
     } else if (inputtype == InputType::video || inputtype == InputType::camera) {
         // get a new frame from camera
         capture >> img;
-        
+    
         if (cropDim[0] != 0 || cropDim[1] != 0 || cropDim[2] != 0 || cropDim[3] != 0) {
+            cropDim[0] = sdl::auxiliary::Utilities::constrain(cropDim[0], 0, img.cols / 2);
+            cropDim[1] = sdl::auxiliary::Utilities::constrain(cropDim[1], 0, img.rows / 2);
+            cropDim[2] = sdl::auxiliary::Utilities::constrain(cropDim[2], 0, img.cols / 2);
+            cropDim[3] = sdl::auxiliary::Utilities::constrain(cropDim[3], 0, img.rows / 2);
             // Crop the full image to that image contained by the rectangle crop
             cv::Rect crop(cropDim[0], cropDim[1], img.cols - cropDim[0] - cropDim[2], img.rows - cropDim[1] - cropDim[3]);
             img = img(crop);
@@ -116,8 +120,8 @@ int main(int argc, char* argv[]) {
     std::cout << "max FPS: " << maxFramesPerSecond << std::endl;
 
     // screen dimensions
-    const int width = sdl::auxiliary::CommandLineParser::readCmdInt(argv, argv + argc, "-x", 0, 2000);
-    const int height = sdl::auxiliary::CommandLineParser::readCmdInt(argv, argv + argc, "-y", 0, 2000);
+    const int width = sdl::auxiliary::CommandLineParser::readCmdInt(argv, argv + argc, "-x", 0, INT_MAX);
+    const int height = sdl::auxiliary::CommandLineParser::readCmdInt(argv, argv + argc, "-y", 0, INT_MAX);
     if (width == 0 && height == 0) {
         std::cout << "Using original dimensions of input source." << std::endl;
     } else {
@@ -125,8 +129,14 @@ int main(int argc, char* argv[]) {
         std::cout << "Screen height: " << height << std::endl;
     }
 
-    // TODO: read in crop size:
-    std::array<int, 4> crop = {150, 50, 150, 100};
+    // read in crop size:
+    std::array<int, 4> crop = {0, 0, 0, 0};
+    std::vector<int> cropv = sdl::auxiliary::CommandLineParser::readCmdListInt(argv, argv + argc, "-c", 0, INT_MAX);
+    if (cropv.size() == 4) {
+        for (size_t i = 0; i < cropv.size(); ++i)
+            crop[i] = cropv[i];
+        std::cout << "Crop size: (" << crop[0] << ", " << crop[1] << ", " << crop[2] << ", " << crop[3] << ")" << std::endl;
+    }
 
 
     // take records of frame number
