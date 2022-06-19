@@ -2,10 +2,13 @@
 #include "GameLibrary/Sort.h"
 #include "GameLibrary/vector.h"
 #include "GameLibrary/matrix.h"
+#include "GameLibrary/operators.h"
 #include <vector>
 #include <iostream>
 #include <opencv2/opencv.hpp>
 #include <opencv2/imgproc.hpp>
+
+#include <gtest/gtest.h>
 
 // TODO: use google unittests
 namespace unittests {
@@ -141,5 +144,22 @@ namespace unittests {
             cv::Vec4i l = houghLines[k];
             std::cout << "(" << l[0] << ", " << l[1] << ", " << l[2] << ", " << l[3] << ")" << std::endl;
         }
+    }
+
+    void testVectorMatrix() {
+        math::vector<double> drow1 = { 1, 2};
+        math::vector<double> drow2 = { 3, 4};
+        math::matrix<double> dmat1 = { drow1, drow2 };
+
+        math::vector<double> drow3 = { 5, 6};
+        math::vector<double> drow4 = { 7, 8};
+        math::matrix<double> dmat2 = { drow3, drow4 };
+
+        math::matrix<double> dmat = dmat1 * dmat2;
+
+        EXPECT_EQ(19, dmat(0, 0));
+        //EXPECT_EQ(22, dmat(0, 1));
+        //EXPECT_EQ(43, dmat(1, 0));
+        //EXPECT_EQ(50, dmat(1, 1));
     }
 }

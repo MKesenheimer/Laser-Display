@@ -1,7 +1,9 @@
 .DS_Store
 laser-display
+gtest
 build
-liblumax.so
 noname.cpp
 .vscode
 captures
+*.so
+*.dylib

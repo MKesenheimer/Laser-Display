@@ -111,7 +111,7 @@ T distanceSq(XYPoint<T> a, XYPoint<T> b) {
 }
 
 void usage(char* argv[]) {
-    std::cout << "Usage:" << std::endl << argv[0] << "-i <path/filename> [options]" << std::endl;
+    std::cout << "Usage:" << std::endl << argv[0] << " -i <path/filename> [options]" << std::endl;
     std::cout << "Options:" << std::endl;
     std::cout << "-h                                                   display help message" << std::endl;
     std::cout << "-i <path/filename>                                   input file to render" << std::endl;

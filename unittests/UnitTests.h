@@ -19,4 +19,6 @@ namespace unittests {
     void testMinimalPointLinePoint();
 
     void testSortLines();
+
+    void testVectorMatrix();
 }
