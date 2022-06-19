@@ -27,6 +27,7 @@ $(shell mkdir -p build)
 
 WORKINGDIR = $(shell pwd)
 PARENTDIR  = $(WORKINGDIR)/..
+LIBS       = $(WORKINGDIR)/libs
 
 ########################################################################
 ## search for the files and set paths
@@ -38,7 +39,7 @@ vpath %.o $(WORKINGDIR)/build
 
 ########################################################################
 ## Includes
-CXX  = $(COMPILER) $(FLAGS) $(OPT) $(WARN) $(DEBUG) $(PREPRO) -I$(WORKINGDIR)
+CXX  = $(COMPILER) $(FLAGS) $(OPT) $(WARN) $(DEBUG) $(PREPRO) -I$(WORKINGDIR) -I$(LIBS)/eigen/
 INCLUDE = $(wildcard *.h $(UINCLUDE)/*.h)
 
 ########################################################################

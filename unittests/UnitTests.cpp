@@ -1,5 +1,7 @@
 #include "GameLibrary/Algorithms.h"
 #include "GameLibrary/Sort.h"
+#include "GameLibrary/vector.h"
+#include "GameLibrary/matrix.h"
 #include <vector>
 #include <iostream>
 #include <opencv2/opencv.hpp>

@@ -4,3 +4,6 @@
 [submodule "SDLTools"]
 	path = SDLTools
 	url = git@github.com:MKesenheimer/SDLTools.git
+[submodule "libs/eigen"]
+	path = libs/eigen
+	url = https://gitlab.com/libeigen/eigen.git
