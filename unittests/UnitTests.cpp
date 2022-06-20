@@ -3,6 +3,10 @@
 #include "GameLibrary/vector.h"
 #include "GameLibrary/matrix.h"
 #include "GameLibrary/operators.h"
+#include "GameLibrary/Fit.h"
+#include "GameLibrary/vector.h"
+#include "GameLibrary/matrix.h"
+#include "GameLibrary/operators.h"
 #include <vector>
 #include <iostream>
 #include <opencv2/opencv.hpp>
@@ -209,4 +213,63 @@ TEST(Types, VectorMatrix) {
     EXPECT_EQ(22, dmat(0, 1));
     EXPECT_EQ(43, dmat(1, 0));
     EXPECT_EQ(50, dmat(1, 1));
+}
+
+TEST(GameLibrary, LinFit) {
+    // given points pi = {xi, yi}
+    math::vector<double> p1 = {0, 0};
+    math::vector<double> p2 = {1, 1};
+    math::vector<double> p3 = {2, 4};
+    math::vector<double> p4 = {3, 9};
+
+    math::matrix<double> P;
+    P.push_back(p1);
+    P.push_back(p2);
+    P.push_back(p3);
+    P.push_back(p4);
+
+    // fit the polynomial c + b * x + a * x^2
+    const size_t degree = 2;
+    const size_t numberOfPoints = P.rows();
+
+    // A is the coefficient matrix of the polynom
+    math::matrix<double> A(numberOfPoints, degree + 1);
+    math::vector<double> b(numberOfPoints);
+    for (size_t i = 0; i < numberOfPoints; ++i) { // for every vector
+        for (size_t j = 0; j <= degree; ++j) { // for every coefficient (degree)
+            A(i, j) = std::pow(P(i, 0), j);
+        }
+        b[i] = P(i, 1);
+    }
+
+    // Solve the equation b = A * x for x
+    math::vector<double> x = math::utilities::Fit::linFit<double>(b, A);
+
+    EXPECT_NEAR(0, x[0], 0.001); // c = 0
+    EXPECT_NEAR(0, x[1], 0.001); // b = 0
+    EXPECT_NEAR(1, x[2], 0.001); // a = 1
+}
+
+TEST(GameLibrary, polyFit) {
+    // given points pi = {xi, yi}
+    math::vector<double> p1 = {0, 0};
+    math::vector<double> p2 = {1, 1};
+    math::vector<double> p3 = {2, 4};
+    math::vector<double> p4 = {3, 9};
+
+    math::matrix<double> P;
+    P.push_back(p1);
+    P.push_back(p2);
+    P.push_back(p3);
+    P.push_back(p4);
+
+    // fit the polynomial c + b * x + a * x^2
+    const size_t degree = 2;
+
+    // Solve the equation b = A * x for x
+    math::vector<double> coeff = math::utilities::Fit::polyFit<double>(P, degree);
+
+    EXPECT_NEAR(0, coeff[0], 0.001); // c = 0
+    EXPECT_NEAR(0, coeff[1], 0.001); // b = 0
+    EXPECT_NEAR(1, coeff[2], 0.001); // a = 1
 }

@@ -19,6 +19,10 @@
 #include "GameLibrary/Renderer.h"
 #include "GameLibrary/Algorithms.h"
 #include "GameLibrary/Sort.h"
+#include "GameLibrary/vector.h"
+#include "GameLibrary/matrix.h"
+#include "GameLibrary/operators.h"
+#include "GameLibrary/Fit.h"
 
 #define OCVSTEP 0
 #define MEASURETIME
@@ -143,80 +147,214 @@ cv::Mat readInputSource(const std::string& input, cv::VideoCapture& capture, Inp
 }
 
 #if LUMAX_OUTPUT
-void colorCorrection(void* lumaxHandle, LumaxRenderer& ren) {
+void colorCorrection(void* lumaxHandle, LumaxRenderer& ren, SDL_Renderer* renderer, TTF_Font* font) {
     sdl::auxiliary::Timer fps;
     SDL_Event e;
-    bool done = false;
     bool quit = false;
-    int step = 0;
-    while (!done && !quit) {
-        fps.start();
-        // read any events that occured, for now we'll just quit if any event occurs
-        while (SDL_PollEvent(&e)) {
-            // if user closes the window
-            if (e.type == SDL_QUIT)
-                quit = true;
-            // if user presses any key
-            else if (e.type == SDL_KEYDOWN)
-                if (e.key.keysym.sym == SDLK_SPACE)
-                    step++;
-        }
+    bool done = false;
+    std::string message = std::string();
+    size_t maxSteps = 7;
+    math::vector<math::vector<double>> pointsRed(4, 2);
+    math::vector<math::vector<double>> pointsGre(4, 2);
+    math::vector<math::vector<double>> pointsBlu(4, 2);
 
+    for (int step = 0; step < maxSteps; ++step) {
         int r = 0, g = 0, b = 0;
         switch(step) {
             case 0:
-                r = 85;
-                g = 85;
-                b = 85;
+                r = 0;
+                g = 0;
+                b = 0;
+                done = false;
+                message = "Increase red until it is bareley visible";
                 break;
             case 1:
-                r = 100;
-                g = 100;
-                b = 100;
+                r = 0;
+                g = 0;
+                b = 0;
+                message = "Increase green until it is bareley visible";
+                done = false;
                 break;
             case 2:
-                r = 170;
-                g = 170;
-                b = 170;
+                r = 0;
+                g = 0;
+                b = 0;
+                message = "Increase blue until it is bareley visible";
+                done = false;
                 break;
             case 3:
                 r = 255;
                 g = 255;
                 b = 255;
+                done = false;
+                message = "Decrease red, green and blue until the beam is white";
+                break;
+            case 4:
+                r = 170;
+                g = 170;
+                b = 170;
+                done = false;
+                message = "Vary red and green until the beam is white. Keep blue constant.";
+                break;
+            case 5:
+                r = 170;
+                g = 170;
+                b = 170;
+                done = false;
+                message = "Vary green and blue until the beam is white. Keep red constant.";
+                break;
+            case 6:
+                r = 170;
+                g = 170;
+                b = 170;
+                done = false;
+                message = "Vary blue and red until the beam is white. Keep green constant.";
                 break;
         }
+        
+        while (!done && !quit) {
+            fps.start();
+            // read any events that occured, for now we'll just quit if any event occurs
+            while (SDL_PollEvent(&e)) {
+                // if user closes the window
+                if (e.type == SDL_QUIT)
+                    quit = true;
+                // if user presses any key
+                else if (e.type == SDL_KEYDOWN) {
+                    if (e.key.keysym.sym == SDLK_SPACE) {
+                        done = true;
+                        switch(step) {
+                            case 0:
+                                pointsRed[0][0] = 0; // soll
+                                pointsRed[0][1] = r; // ist
+                                break;
+                            case 1:
+                                pointsGre[0][0] = 0; // soll
+                                pointsGre[0][1] = g; // ist
+                                break;
+                            case 2:
+                                pointsBlu[0][0] = 0; // soll
+                                pointsBlu[0][1] = b; // ist
+                                break;
+                            case 3:
+                                pointsRed[1][0] = 255; // soll
+                                pointsRed[1][1] = r; // ist
+                                pointsGre[1][0] = 255; // soll
+                                pointsGre[1][1] = g; // ist
+                                pointsBlu[1][0] = 255; // soll
+                                pointsBlu[1][1] = b; // ist
+                                break;
+                            case 4:
+                                pointsRed[2][0] = 170; // soll
+                                pointsRed[2][1] = r; // ist
+                                pointsGre[2][0] = 170; // soll
+                                pointsGre[2][1] = g; // ist
+                                break;
+                            case 5:
+                                pointsGre[3][0] = 170; // soll
+                                pointsGre[3][1] = g; // ist
+                                pointsBlu[2][0] = 170; // soll
+                                pointsBlu[2][1] = b; // ist
+                                break;
+                            case 6:
+                                pointsBlu[3][0] = 170; // soll
+                                pointsBlu[3][1] = b; // ist
+                                pointsRed[3][0] = 170; // soll
+                                pointsRed[3][1] = r; // ist
+                                break;
+                        }
+                    }
+                }
+            }
 
-        // TODO: modify this with keyboard inputs
-        // TODO: let the user decide when the output is "white".
-        //       use linear algebra to fit the found values to the color correction values.
-        ren.colorCorr.ar = 0;
-        ren.colorCorr.br = 0.9;
-        ren.colorCorr.cr = 1;
+            const uint8_t* keystate = SDL_GetKeyboardState(NULL);
+            if (keystate[SDL_SCANCODE_Q]) {
+                r = Algorithms::constrain<int>(r + 1, 0, 255);
+            }
+            if (keystate[SDL_SCANCODE_A]) {
+                r = Algorithms::constrain<int>(r - 1, 0, 255);
+            }
+            if (keystate[SDL_SCANCODE_W]) {
+                g = Algorithms::constrain<int>(g + 1, 0, 255);
+            }
+            if (keystate[SDL_SCANCODE_S]) {
+                g = Algorithms::constrain<int>(g - 1, 0, 255);
+            }
+            if (keystate[SDL_SCANCODE_E]) {
+                b = Algorithms::constrain<int>(b + 1, 0, 255);
+            }
+            if (keystate[SDL_SCANCODE_D]) {
+                b = Algorithms::constrain<int>(b - 1, 0, 255);
+            }
 
-        ren.colorCorr.ag = 0;
-        ren.colorCorr.bg = 1.0;
-        ren.colorCorr.cg = 0;
+            // Draw the background black
+            SDL_RenderClear(renderer);        
+            boxRGBA(renderer, 0, 0, Renderer::screen_width, Renderer::screen_height, 10, 10, 10, 255);
 
-        ren.colorCorr.ab = 0;
-        ren.colorCorr.bb = 0.95;
-        ren.colorCorr.cb = 20;
+            // build text for displaying values
+            SDL_Color textColor = {0, 255, 0};
+            sdl::auxiliary::Utilities::renderText(message, font, textColor, renderer, 25, 25);
+            std::string str = "(q+, a-): increase/decrease red " + Algorithms::typeToStr<int>(r);
+            sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 50);
+            str = "(w+, s-): increase/decrease green " + Algorithms::typeToStr<int>(g);
+            sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 75);
+            str = "(e+, d-): increase/decrease blue " + Algorithms::typeToStr<int>(b);
+            sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 100);
 
-        std::cout << "step " << step << ": (r, g, b) = (" << r << ", " << g << ", " << b << ")" << std::endl;
-        std::vector<Point<float>> points;
-        points.push_back({ 100,  100,   0,   0,   0, 255, false});
-        points.push_back({ 100,  100, r, g, b, 255, false});
-        points.push_back({-100,  100, r, g, b, 255, false});
-        points.push_back({-100, -100, r, g, b, 255, false});
-        points.push_back({ 100, -100, r, g, b, 255, false});
-        points.push_back({ 100,  100, r, g, b, 255, false});
-        Renderer::drawPoints(points, ren);
-        Renderer::sendPointsToLumax(lumaxHandle, ren, 200);
+            // apply the renderer to the screen
+            SDL_RenderPresent(renderer);
 
-        // apply the fps cap
-        if (fps.getTicks() < 1000 / 10) {
-            SDL_Delay((1000 / 10) - fps.getTicks() );
+            std::vector<Point<float>> points;
+            points.push_back({ 100,  100,   0,   0,   0, 255, false});
+            points.push_back({ 100,  100, r, g, b, 255, false});
+            points.push_back({-100,  100, r, g, b, 255, false});
+            points.push_back({-100, -100, r, g, b, 255, false});
+            points.push_back({ 100, -100, r, g, b, 255, false});
+            points.push_back({ 100,  100, r, g, b, 255, false});
+            Renderer::drawPoints(points, ren);
+            Renderer::sendPointsToLumax(lumaxHandle, ren, 200);
+
+            // apply the fps cap
+            if (fps.getTicks() < 1000 / 10) {
+                SDL_Delay((1000 / 10) - fps.getTicks() );
+            }
         }
     }
+
+    // Summary
+    std::cout << "Summary:" << std::endl;
+    math::matrix<double> matrixRed(pointsRed);
+    math::matrix<double> matrixGre(pointsGre);
+    math::matrix<double> matrixBlu(pointsBlu);
+
+    for (size_t i = 0; i < matrixRed.rows(); ++i)
+        std::cout << "Pred_" << i << " = (" << matrixRed(i, 0) << ", " << matrixRed(i, 1) << ")" << std::endl;
+    for (size_t i = 0; i < matrixGre.rows(); ++i)
+        std::cout << "Pgre_" << i << " = (" << matrixGre(i, 0) << ", " << matrixGre(i, 1) << ")" << std::endl;
+    for (size_t i = 0; i < matrixBlu.rows(); ++i)
+        std::cout << "Pblu_" << i << " = (" << matrixBlu(i, 0) << ", " << matrixBlu(i, 1) << ")" << std::endl;
+
+    math::vector<double> coeffRed = math::utilities::Fit::polyFit<double>(matrixRed, 2);
+    math::vector<double> coeffGre = math::utilities::Fit::polyFit<double>(matrixGre, 2);
+    math::vector<double> coeffBlu = math::utilities::Fit::polyFit<double>(matrixBlu, 2);
+
+    std::cout << "Color correction polynomials:" << std::endl;
+    std::cout << "Pol_red(x) = " << coeffRed[0] << " + " << coeffRed[1] << " * x + " << coeffRed[2] << " * x^2" << std::endl; 
+    std::cout << "Pol_gre(x) = " << coeffGre[0] << " + " << coeffGre[1] << " * x + " << coeffGre[2] << " * x^2" << std::endl; 
+    std::cout << "Pol_blu(x) = " << coeffBlu[0] << " + " << coeffBlu[1] << " * x + " << coeffBlu[2] << " * x^2" << std::endl; 
+
+    // store the coefficients
+    ren.colorCorr.ar = static_cast<float>(coeffRed[2]);
+    ren.colorCorr.br = static_cast<float>(coeffRed[1]);
+    ren.colorCorr.cr = static_cast<float>(coeffRed[0]);
+
+    ren.colorCorr.ag = static_cast<float>(coeffGre[2]);
+    ren.colorCorr.bg = static_cast<float>(coeffGre[1]);
+    ren.colorCorr.cg = static_cast<float>(coeffGre[0]);
+
+    ren.colorCorr.ab = static_cast<float>(coeffBlu[2]);
+    ren.colorCorr.bb = static_cast<float>(coeffBlu[1]);
+    ren.colorCorr.cb = static_cast<float>(coeffBlu[0]);
 }
 #endif
 
@@ -348,7 +486,7 @@ int main(int argc, char* argv[]) {
     }
 
     // load the SDL renderer and set the screen dimensions
-    SDL_Renderer *renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+    SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
     if (renderer == NULL) {
         sdl::auxiliary::Utilities::logSDLError(std::cout, "SDL_CreateRenderer");
         sdl::auxiliary::Utilities::cleanup(window);
@@ -403,7 +541,7 @@ int main(int argc, char* argv[]) {
     lumaxRenderer.swapXY = 0;
 
     if (parameters.doColorCorrection == true)
-        colorCorrection(lumaxHandle, lumaxRenderer);
+        colorCorrection(lumaxHandle, lumaxRenderer, renderer, font);
 #endif
 
     // logic
@@ -528,7 +666,7 @@ int main(int argc, char* argv[]) {
         cv::Mat display = lines.clone();
 #endif
         // Draw the background black
-        SDL_RenderClear(renderer);        
+        SDL_RenderClear(renderer);
         boxRGBA(renderer, 0, 0, Renderer::screen_width, Renderer::screen_height, 10, 10, 10, 255);
 
 #ifdef OCVSTEP
