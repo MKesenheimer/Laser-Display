@@ -1,6 +1,10 @@
 ########################################################################
 #                          -*- Makefile -*-                            #
 ########################################################################
+# Force rebuild on these rules
+.PHONY: all libs clean clean-libs
+.DEFAULT_GOAL := laser-display
+
 COMPILER = g++
 
 ########################################################################
@@ -83,23 +87,36 @@ BUILD = Main.a Renderer.a Algorithms.a Sort.a Collision.a Object.a Solver.a
 
 ## BUILD files for unittests
 BUILD_U = Renderer.a Algorithms.a Sort.a Collision.a Object.a Solver.a
-BUILD_U += UnitTests.a Main.a
+BUILD_U += UnitTests.a gtest.a
 
 
 ########################################################################
 ## Rules
 ## type make -j4 [rule] to speed up the compilation
+all: libs laser-display gtest
+
 laser-display: $(BUILD)
-	  $(CXX) $(patsubst %,build/%,$(BUILD)) $(LDFLAGS) $(FRM) -o $@
+	$(CXX) $(patsubst %,build/%,$(BUILD)) $(LDFLAGS) $(FRM) -o $@
 
 gtest: $(BUILD_U)
 	$(CXX) $(patsubst %,build/%,$(BUILD_U)) $(LDFLAGS_U) -o $@
 
-# TODO: rule to build google unittest library
-# TODO: rule to copy the built shared libraries to ./libs
+libs:
+	cd $(GTEST) && mkdir -p $(GTEST)/build && cd $(GTEST)/build && \
+	cmake -DBUILD_SHARED_LIBS=ON .. && make
+	cp $(LIBGTEST)/* $(LIBS)
+	cd $(LIBLUMAX) && ./make.sh
+	cp $(LIBLUMAX)/*.dylib $(LIBS)
+
+clean-all: clean clean-libs
 
 clean:
 	rm -f build/*.a laser-display gtest
+
+clean-libs:
+	cd $(GTEST) && rm -rf build 
+	cd $(LIBLUMAX) && rm -f *.dylib *.so
+	rm -f $(LIBS)/*.dylib $(LIBS)/*.so
 
 do:
 	make && ./laser-display

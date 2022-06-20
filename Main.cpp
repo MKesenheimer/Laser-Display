@@ -20,8 +20,6 @@
 #include "GameLibrary/Algorithms.h"
 #include "GameLibrary/Sort.h"
 
-#include "unittests/UnitTests.h"
-
 #define OCVSTEP 0
 #define MEASURETIME
 

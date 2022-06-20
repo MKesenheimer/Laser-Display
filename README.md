@@ -12,8 +12,13 @@ sudo port install libsdl2 libsdl2_gfx libsdl2_image libsdl2_mixer libsdl2_ttf li
 git clone --recurse-submodules https://github.com/MKesenheimer/Laser-Display.git
 ```
 
-## Running google test
-cd libs/googletest
-mkdir -p build && cd build
-cmake -DBUILD_SHARED_LIBS=ON ..
-make
+## Compiling
+make libs
+make -j4 && ./laser-display -i videos/doom.mp4 -f 10 -x 900 -y 600 -c 150,50,150,100
+
+or
+
+make all
+
+## Unittests
+make -j4 gtest && ./gtest
