@@ -115,7 +115,7 @@ cv::Mat readInputSource(const std::string& input, cv::VideoCapture& capture, Inp
 
 #if LUMAX_OUTPUT
 // TODO: move to seperate file
-void colorCorrection(void* lumaxHandle, LumaxRenderer& ren, SDL_Renderer* renderer, TTF_Font* font) {
+void colorCorrection(void* lumaxHandle, Renderer::LumaxRenderer& ren, SDL_Renderer* renderer, TTF_Font* font) {
     sdl::auxiliary::Timer fps;
     SDL_Event e;
     bool quit = false;
@@ -312,15 +312,15 @@ void colorCorrection(void* lumaxHandle, LumaxRenderer& ren, SDL_Renderer* render
     std::cout << "Pol_blu(x) = " << coeffBlu[0] << " + " << coeffBlu[1] << " * x + " << coeffBlu[2] << " * x^2" << std::endl; 
 
     // store the coefficients
-    ren.colorCorr.ar = static_cast<float>(coeffRed[2]);
-    ren.colorCorr.br = static_cast<float>(coeffRed[1]);
-    ren.colorCorr.cr = static_cast<float>(coeffRed[0]);
-    ren.colorCorr.ag = static_cast<float>(coeffGre[2]);
-    ren.colorCorr.bg = static_cast<float>(coeffGre[1]);
-    ren.colorCorr.cg = static_cast<float>(coeffGre[0]);
-    ren.colorCorr.ab = static_cast<float>(coeffBlu[2]);
-    ren.colorCorr.bb = static_cast<float>(coeffBlu[1]);
-    ren.colorCorr.cb = static_cast<float>(coeffBlu[0]);
+    ren.parameters.colorCorr.ar = static_cast<float>(coeffRed[2]);
+    ren.parameters.colorCorr.br = static_cast<float>(coeffRed[1]);
+    ren.parameters.colorCorr.cr = static_cast<float>(coeffRed[0]);
+    ren.parameters.colorCorr.ag = static_cast<float>(coeffGre[2]);
+    ren.parameters.colorCorr.bg = static_cast<float>(coeffGre[1]);
+    ren.parameters.colorCorr.cg = static_cast<float>(coeffGre[0]);
+    ren.parameters.colorCorr.ab = static_cast<float>(coeffBlu[2]);
+    ren.parameters.colorCorr.bb = static_cast<float>(coeffBlu[1]);
+    ren.parameters.colorCorr.cb = static_cast<float>(coeffBlu[0]);
 }
 #endif
 
@@ -465,30 +465,20 @@ int getParameters(int argc, char* argv[], Parameters& parameters) {
 
     const libconfig::Setting& root = cfg.getRoot();
     try {
-        const libconfig::Setting &books = root["application"]["books"];
-        int count = books.getLength();
-
-        for(int i = 0; i < count; ++i) {
-            const libconfig::Setting &book = books[i];
-
-            // Only output the record if all of the expected fields are present.
-            std::string title, author;
-            double price;
-            int qty;
-
-            if(!(book.lookupValue("title", title)
-                 && book.lookupValue("author", author)
-                 && book.lookupValue("price", price)
-                 && book.lookupValue("qty", qty)))
-                continue;
-
-            std::cout << std::setw(30) << std::left << title << "  "
-                 << std::setw(30) << std::left << author << "  "
-                 << '$' << std::setw(6) << std::right << price << "  "
-                 << qty
-                 << std::endl;
-        }
-        std::cout << std::endl;
+        const libconfig::Setting &colorCorrection = root["application"]["color-correction"];
+        float ar, br, cr;
+        float ag, bg, cg;
+        float ab, bb, cb;
+        colorCorrection.lookupValue("ar", ar);
+        colorCorrection.lookupValue("br", br);
+        colorCorrection.lookupValue("cr", cr);
+        colorCorrection.lookupValue("ag", ag);
+        colorCorrection.lookupValue("bg", bg);
+        colorCorrection.lookupValue("cg", cg);
+        colorCorrection.lookupValue("ab", ab);
+        colorCorrection.lookupValue("bb", bb);
+        colorCorrection.lookupValue("cb", cb);
+        std::cout << "ar = " << ar << std::endl;
     } catch(const libconfig::SettingNotFoundException &nfex) {} // Ignore
 
     return 0;
@@ -514,7 +504,7 @@ int main(int argc, char* argv[]) {
     }
 
     // declare the lumax renderer
-    LumaxRenderer lumaxRenderer;
+    Renderer::LumaxRenderer lumaxRenderer;
     lumaxRenderer.parameters.mirrorFactX = parameters.mirrorFactX;
     lumaxRenderer.parameters.mirrorFactY = parameters.mirrorFactY;
     lumaxRenderer.parameters.scalingX = parameters.scalingX;
