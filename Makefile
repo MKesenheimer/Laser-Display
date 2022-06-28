@@ -30,6 +30,7 @@ $(shell mkdir -p build)
 ## Paths, modify if necessary
 WORKINGDIR = $(shell pwd)
 PARENTDIR  = $(WORKINGDIR)/..
+SYSTEMINC  = /opt/local/include
 LIBS       = $(WORKINGDIR)/libs
 EIGEN      = $(LIBS)/eigen
 GTEST      = $(LIBS)/googletest
@@ -49,7 +50,7 @@ vpath %.o $(WORKINGDIR)/build
 
 ########################################################################
 ## Includes
-CXX  = $(COMPILER) $(FLAGS) $(OPT) $(WARN) $(DEBUG) $(PREPRO) -I$(WORKINGDIR) -I$(LIBS) -I$(EIGEN) -I$(GTEST)/googletest/include
+CXX  = $(COMPILER) $(FLAGS) $(OPT) $(WARN) $(DEBUG) $(PREPRO) -I$(SYSTEMINC) -I$(WORKINGDIR) -I$(LIBS) -I$(EIGEN) -I$(GTEST)/googletest/include
 INCLUDE = $(wildcard *.h $(UINCLUDE)/*.h)
 
 ########################################################################
@@ -64,6 +65,9 @@ LDFLAGS += $(shell pkg-config --libs opencv4)
 
 ### Lumax
 LDFLAGS += -L$(LIBLUMAX) -llumax 
+
+### libconfig
+LDFLAGS += -lconfig++
 
 # Frameworks
 # -framework SDL_gfx 

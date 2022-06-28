@@ -12,6 +12,8 @@
 
 #include <SDL.h>
 #include <SDL_ttf.h>
+#include <libconfig.h++>
+
 #include "SDLTools/Utilities.h"
 #include "SDLTools/Timer.h"
 #include "SDLTools/CommandLineParser.h"
@@ -27,8 +29,23 @@
 #define OCVSTEP 0
 #define MEASURETIME
 
-// opencv specific
+// InputType structure 
+enum InputType {
+    image, video, camera
+};
+
+// all relevant paramters
 struct Parameters {
+    // input handling
+    std::array<int, 4> crop = {0, 0, 0, 0};
+    InputType inputtype = InputType::image;
+    std::string inputFile;
+
+    // renderer options
+    int width = 900;
+    int height = 600;
+
+    // opencv specific
     int fillShortBlanks = 10;
     int lightThreshold = 50;
     int interThreshold = 10;
@@ -42,67 +59,17 @@ struct Parameters {
     bool blankMoves = false;
     bool doColorCorrection = false;
     bool colorBoost = true;
-};
 
-void handleKeyPress(Parameters& parameters) {
-    // handle keyboard inputs (no lags and delays!)
-    const uint8_t* keystate = SDL_GetKeyboardState(NULL);
-    if (keystate[SDL_SCANCODE_B]) {
-        parameters.blankMoves = !parameters.blankMoves;
-    }
-    if (keystate[SDL_SCANCODE_W]) {
-        parameters.fillShortBlanks++;
-    }
-    if (keystate[SDL_SCANCODE_S]) {
-        parameters.fillShortBlanks = (parameters.fillShortBlanks >= 2 ? parameters.fillShortBlanks - 1 : parameters.fillShortBlanks);
-    }
-    if (keystate[SDL_SCANCODE_E]) {
-        parameters.lightThreshold++;
-    }
-    if (keystate[SDL_SCANCODE_D]) {
-        parameters.lightThreshold = (parameters.lightThreshold >= 2 ? parameters.lightThreshold - 1 : parameters.lightThreshold);
-    }
-    if (keystate[SDL_SCANCODE_R]) {
-        parameters.interThreshold++;
-    }
-    if (keystate[SDL_SCANCODE_F]) {
-        parameters.interThreshold = (parameters.interThreshold >= 1 ? parameters.interThreshold - 1 : parameters.interThreshold);
-    }
-    if (keystate[SDL_SCANCODE_T]) {
-        parameters.minLineLength++;
-    }
-    if (keystate[SDL_SCANCODE_G]) {
-        parameters.minLineLength = (parameters.minLineLength >= 1 ? parameters.minLineLength - 1 : parameters.minLineLength);   
-    }
-    if (keystate[SDL_SCANCODE_Y]) {
-        parameters.maxLineGap++;
-    }
-    if (keystate[SDL_SCANCODE_H]) {
-        parameters.maxLineGap = (parameters.maxLineGap >= 1 ? parameters.maxLineGap - 1 : parameters.maxLineGap);
-    }
-    if (keystate[SDL_SCANCODE_U]) {
-        parameters.blursize += 2;
-    }
-    if (keystate[SDL_SCANCODE_J]) {
-        parameters.blursize = (parameters.blursize >= 3 ? parameters.blursize - 2 : parameters.blursize);
-    }
-    if (keystate[SDL_SCANCODE_I]) {
-        parameters.upperThreshold++;
-    }
-    if (keystate[SDL_SCANCODE_K]) {
-        parameters.upperThreshold = (parameters.upperThreshold >= 1 ? parameters.upperThreshold - 1 : parameters.upperThreshold);
-    }
-    if (keystate[SDL_SCANCODE_O]) {
-        parameters.lowerThreshold = (parameters.lowerThreshold < parameters.upperThreshold ? parameters.lowerThreshold + 1 : parameters.upperThreshold - 1);
-    }
-    if (keystate[SDL_SCANCODE_L]) {
-        parameters.lowerThreshold = (parameters.lowerThreshold >= 1 ? parameters.lowerThreshold - 1 : parameters.lowerThreshold);
-    }
-}
+    // SDL specific
+    int maxFramesPerSecond = 20;
 
-// InputType structure 
-enum InputType {
-    image, video, camera
+#ifdef LUMAX_OUTPUT
+    int mirrorFactX = -1;
+    int mirrorFactY = 1;
+    float scalingX = 0.2;
+    float scalingY = 0.15;
+    int swapXY = 0;
+#endif
 };
 
 template<typename T> 
@@ -147,6 +114,7 @@ cv::Mat readInputSource(const std::string& input, cv::VideoCapture& capture, Inp
 }
 
 #if LUMAX_OUTPUT
+// TODO: move to seperate file
 void colorCorrection(void* lumaxHandle, LumaxRenderer& ren, SDL_Renderer* renderer, TTF_Font* font) {
     sdl::auxiliary::Timer fps;
     SDL_Event e;
@@ -347,21 +315,72 @@ void colorCorrection(void* lumaxHandle, LumaxRenderer& ren, SDL_Renderer* render
     ren.colorCorr.ar = static_cast<float>(coeffRed[2]);
     ren.colorCorr.br = static_cast<float>(coeffRed[1]);
     ren.colorCorr.cr = static_cast<float>(coeffRed[0]);
-
     ren.colorCorr.ag = static_cast<float>(coeffGre[2]);
     ren.colorCorr.bg = static_cast<float>(coeffGre[1]);
     ren.colorCorr.cg = static_cast<float>(coeffGre[0]);
-
     ren.colorCorr.ab = static_cast<float>(coeffBlu[2]);
     ren.colorCorr.bb = static_cast<float>(coeffBlu[1]);
     ren.colorCorr.cb = static_cast<float>(coeffBlu[0]);
 }
 #endif
 
-int main(int argc, char* argv[]) {
-    // global Parameters
-    Parameters parameters;
+void handleKeyPress(Parameters& parameters) {
+    // handle keyboard inputs (no lags and delays!)
+    const uint8_t* keystate = SDL_GetKeyboardState(NULL);
+    if (keystate[SDL_SCANCODE_B]) {
+        parameters.blankMoves = !parameters.blankMoves;
+    }
+    if (keystate[SDL_SCANCODE_W]) {
+        parameters.fillShortBlanks++;
+    }
+    if (keystate[SDL_SCANCODE_S]) {
+        parameters.fillShortBlanks = (parameters.fillShortBlanks >= 2 ? parameters.fillShortBlanks - 1 : parameters.fillShortBlanks);
+    }
+    if (keystate[SDL_SCANCODE_E]) {
+        parameters.lightThreshold++;
+    }
+    if (keystate[SDL_SCANCODE_D]) {
+        parameters.lightThreshold = (parameters.lightThreshold >= 2 ? parameters.lightThreshold - 1 : parameters.lightThreshold);
+    }
+    if (keystate[SDL_SCANCODE_R]) {
+        parameters.interThreshold++;
+    }
+    if (keystate[SDL_SCANCODE_F]) {
+        parameters.interThreshold = (parameters.interThreshold >= 1 ? parameters.interThreshold - 1 : parameters.interThreshold);
+    }
+    if (keystate[SDL_SCANCODE_T]) {
+        parameters.minLineLength++;
+    }
+    if (keystate[SDL_SCANCODE_G]) {
+        parameters.minLineLength = (parameters.minLineLength >= 1 ? parameters.minLineLength - 1 : parameters.minLineLength);   
+    }
+    if (keystate[SDL_SCANCODE_Y]) {
+        parameters.maxLineGap++;
+    }
+    if (keystate[SDL_SCANCODE_H]) {
+        parameters.maxLineGap = (parameters.maxLineGap >= 1 ? parameters.maxLineGap - 1 : parameters.maxLineGap);
+    }
+    if (keystate[SDL_SCANCODE_U]) {
+        parameters.blursize += 2;
+    }
+    if (keystate[SDL_SCANCODE_J]) {
+        parameters.blursize = (parameters.blursize >= 3 ? parameters.blursize - 2 : parameters.blursize);
+    }
+    if (keystate[SDL_SCANCODE_I]) {
+        parameters.upperThreshold++;
+    }
+    if (keystate[SDL_SCANCODE_K]) {
+        parameters.upperThreshold = (parameters.upperThreshold >= 1 ? parameters.upperThreshold - 1 : parameters.upperThreshold);
+    }
+    if (keystate[SDL_SCANCODE_O]) {
+        parameters.lowerThreshold = (parameters.lowerThreshold < parameters.upperThreshold ? parameters.lowerThreshold + 1 : parameters.upperThreshold - 1);
+    }
+    if (keystate[SDL_SCANCODE_L]) {
+        parameters.lowerThreshold = (parameters.lowerThreshold >= 1 ? parameters.lowerThreshold - 1 : parameters.lowerThreshold);
+    }
+}
 
+int getParameters(int argc, char* argv[], Parameters& parameters) {
     // Check if all necessary command line arguments were provided
     if (argc < 2 || sdl::auxiliary::CommandLineParser::cmdOptionExists(argv, argv + argc, "-h"))
         usage(argv);
@@ -370,57 +389,138 @@ int main(int argc, char* argv[]) {
         parameters.doColorCorrection = true;
 
     // read input file
-    const std::string input = sdl::auxiliary::CommandLineParser::readCmdNormalized(argv, argv + argc, "-i");
-    if (input == std::string()) {
-        std::cout << "Error: no input given." << std::endl;
+    parameters.inputFile = sdl::auxiliary::CommandLineParser::readCmdNormalized(argv, argv + argc, "-i");
+    if (parameters.inputFile == std::string()) {
+        std::cerr << "Error: no input given." << std::endl;
         usage(argv);
     }
-    std::cout << "Input: " << input << std::endl;
+    std::cout << "Input file: " << parameters.inputFile << std::endl;
 
     // determine input type
-    InputType inputtype = InputType::image;
-    if (input == "camera") {
-        inputtype = InputType::camera;
+    parameters.inputtype = InputType::image;
+    if (parameters.inputFile == "camera") {
+        parameters.inputtype = InputType::camera;
     } else {
-        std::string suffix = input.substr(input.size() - 3);
+        std::string suffix = parameters.inputFile.substr(parameters.inputFile.size() - 3);
         std::transform(suffix.begin(), suffix.end(), suffix.begin(), ::tolower);
         if (suffix == "png" || suffix == "jpg" || suffix == "jpeg") {
-            inputtype = InputType::image;
+            parameters.inputtype = InputType::image;
             std::cout << "Input type: image" << std::endl;
         } else if (suffix == "mp4") {
-            inputtype = InputType::video;
+            parameters.inputtype = InputType::video;
             std::cout << "Input type: video" << std::endl;
         } else {
-            std::cout << "Error: Data type unknown." << std::endl;
+            std::cerr << "Error: Data type unknown." << std::endl;
             usage(argv);
         }
     }
 
     // read max FPS
-    const int maxFramesPerSecond = sdl::auxiliary::CommandLineParser::readCmdOption<int>(argv, argv + argc, "-f", 1, 100);
-    std::cout << "max FPS: " << maxFramesPerSecond << std::endl;
+    parameters.maxFramesPerSecond = sdl::auxiliary::CommandLineParser::readCmdOption<int>(argv, argv + argc, "-f", 1, 100);
+    std::cout << "max FPS: " << parameters.maxFramesPerSecond << std::endl;
 
     // screen dimensions
-    const int width = sdl::auxiliary::CommandLineParser::readCmdOption<int>(argv, argv + argc, "-x", 0, INT_MAX);
-    const int height = sdl::auxiliary::CommandLineParser::readCmdOption<int>(argv, argv + argc, "-y", 0, INT_MAX);
-    if (width == 0 && height == 0) {
+    parameters.width = sdl::auxiliary::CommandLineParser::readCmdOption<int>(argv, argv + argc, "-x", 0, INT_MAX);
+    parameters.height = sdl::auxiliary::CommandLineParser::readCmdOption<int>(argv, argv + argc, "-y", 0, INT_MAX);
+    if (parameters.width == 0 && parameters.height == 0) {
         std::cout << "Using original dimensions of input source." << std::endl;
     } else {
-        std::cout << "Screen width: " << width << std::endl;
-        std::cout << "Screen height: " << height << std::endl;
+        std::cout << "Screen width: " << parameters.width << std::endl;
+        std::cout << "Screen height: " << parameters.height << std::endl;
     }
 
     // read in crop size:
-    std::array<int, 4> crop = {0, 0, 0, 0};
     std::vector<int> cropv = sdl::auxiliary::CommandLineParser::readCmdOptionList<int>(argv, argv + argc, "-c", 0, INT_MAX);
     if (cropv.size() == 4) {
         for (size_t i = 0; i < cropv.size(); ++i)
-            crop[i] = cropv[i];
-        std::cout << "Crop size: (" << crop[0] << ", " << crop[1] << ", " << crop[2] << ", " << crop[3] << ")" << std::endl;
+            parameters.crop[i] = cropv[i];
+        std::cout << "Crop size: (" << parameters.crop[0] << ", " << parameters.crop[1] << ", " << parameters.crop[2] << ", " << parameters.crop[3] << ")" << std::endl;
     }
 
     // TODO: read in Lumax Renderer options from stdin
 
+
+    // read config from file
+    libconfig::Config cfg;
+    // Read the file. If there is an error, report it and exit.
+    try {
+        cfg.readFile("config.cfg");
+    } catch(const libconfig::FileIOException &fioex) {
+        std::cerr << "I/O error while reading file." << std::endl;
+        return -1;
+    } catch(const libconfig::ParseException &pex) {
+        std::cerr << "Parse error at " << pex.getFile() << ":" << pex.getLine()
+                  << " - " << pex.getError() << std::endl;
+        return -1;
+    }
+
+    // Get the version
+    try {
+        std::string version = cfg.lookup("version");
+        std::cout << "Version: " << version << std::endl << std::endl;
+    } catch(const libconfig::SettingNotFoundException &nfex) {
+        std::cerr << "No 'version' setting in configuration file." << std::endl;
+        return -1;
+    }
+
+    const libconfig::Setting& root = cfg.getRoot();
+    try {
+        const libconfig::Setting &books = root["application"]["books"];
+        int count = books.getLength();
+
+        for(int i = 0; i < count; ++i) {
+            const libconfig::Setting &book = books[i];
+
+            // Only output the record if all of the expected fields are present.
+            std::string title, author;
+            double price;
+            int qty;
+
+            if(!(book.lookupValue("title", title)
+                 && book.lookupValue("author", author)
+                 && book.lookupValue("price", price)
+                 && book.lookupValue("qty", qty)))
+                continue;
+
+            std::cout << std::setw(30) << std::left << title << "  "
+                 << std::setw(30) << std::left << author << "  "
+                 << '$' << std::setw(6) << std::right << price << "  "
+                 << qty
+                 << std::endl;
+        }
+        std::cout << std::endl;
+    } catch(const libconfig::SettingNotFoundException &nfex) {} // Ignore
+
+    return 0;
+}
+
+int main(int argc, char* argv[]) {
+    Parameters parameters;
+    int ret = getParameters(argc, argv, parameters);    
+
+#ifdef LUMAX_OUTPUT
+    // open Lumax device
+    int NumOfCards = Lumax_GetPhysicalDevices();
+    void* lumaxHandle = NULL;
+    std::cout << "Number of MiniLumax devices: " <<  NumOfCards << std::endl;
+    if (NumOfCards > 0) {
+        lumaxHandle = Lumax_OpenDevice(1, 0);
+        std::cout << "Lumax_OpenDevice returned handle: 0x" << std::hex << (unsigned long)lumaxHandle << std::endl;
+        if (lumaxHandle == NULL) {
+            std::cerr << "I/O Error while opening the Lumax device." << std::endl;
+            SDL_Quit();
+            return 1;
+        }
+    }
+
+    // declare the lumax renderer
+    LumaxRenderer lumaxRenderer;
+    lumaxRenderer.parameters.mirrorFactX = parameters.mirrorFactX;
+    lumaxRenderer.parameters.mirrorFactY = parameters.mirrorFactY;
+    lumaxRenderer.parameters.scalingX = parameters.scalingX;
+    lumaxRenderer.parameters.scalingY = parameters.scalingY;
+    lumaxRenderer.parameters.swapXY = parameters.swapXY;
+#endif
 
     // take records of frame number
     int frame = 0;
@@ -438,49 +538,48 @@ int main(int argc, char* argv[]) {
 
     // Initialize SDL_ttf
     if (TTF_Init() != 0) {
-        sdl::auxiliary::Utilities::logSDLError(std::cout, "TTF_Init");
+        std::cerr << "Error in TTF_Init: " << SDL_GetError() << std::endl;
         return -1;
     }
 
     // Start up SDL and make sure it went ok
     if (SDL_Init(SDL_INIT_VIDEO) != 0) {
-        sdl::auxiliary::Utilities::logSDLError(std::cout, "SDL_Init");
+        std::cerr << "Error in SDL_Init: " << SDL_GetError() << std::endl;
         return -1;
     }
     
     // initialize video or camera input
     cv::VideoCapture capture = cv::VideoCapture();
-    if (inputtype == camera) {
+    if (parameters.inputtype == camera) {
         // open the default camera
         capture.open(0);
-    } else if (inputtype == video) {
+    } else if (parameters.inputtype == video) {
         // open video file
-        capture.open(input);
+        capture.open(parameters.inputFile);
     }
-    if (inputtype == video || inputtype == camera) {
+    if (parameters.inputtype == video || parameters.inputtype == camera) {
         if (!capture.isOpened()) {
-            sdl::auxiliary::Utilities::logSDLError(std::cout, "VideoCapture");
+            std::cerr << "Error while opening the video device." << std::endl;
             SDL_Quit();
             return 1;
         }
     }
 
     // read image for the first time to get its dimensions
-    cv::Mat img = readInputSource(input, capture, inputtype, crop);
+    cv::Mat img = readInputSource(parameters.inputFile, capture, parameters.inputtype, parameters.crop);
     // sets the global variabls Renderer::screen_width and Renderer::screen_height
-    if (width == 0 && height == 0) {
+    if (parameters.width == 0 && parameters.height == 0) {
         // use the original dimensions
         Renderer::setDimensions(img.cols, img.rows);
     } else {
         // use fixed dimensions
-        Renderer::setDimensions(width, height);
+        Renderer::setDimensions(parameters.width, parameters.height);
     }
 
-    // TODO: Window-Abmessungen automatisch gemäß den Abmessungen des eingelesenen Bildes setzen, sodass es immer ungefähr 900 * 600 hat
     // Set up our window and renderer, this time let's put our window in the center of the screen
     SDL_Window *window = SDL_CreateWindow("Laser-Display", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, Renderer::screen_width, Renderer::screen_height, SDL_WINDOW_SHOWN);
     if (window == NULL) {
-        sdl::auxiliary::Utilities::logSDLError(std::cout, "SDL_CreateWindow");
+        std::cerr << "Error in SDL_CreateWindow: " << SDL_GetError() << std::endl;
         SDL_Quit();
         return -1;
     }
@@ -488,17 +587,16 @@ int main(int argc, char* argv[]) {
     // load the SDL renderer and set the screen dimensions
     SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
     if (renderer == NULL) {
-        sdl::auxiliary::Utilities::logSDLError(std::cout, "SDL_CreateRenderer");
+        std::cerr << "Error in SDL_CreateRenderer: " << SDL_GetError() << std::endl;
         sdl::auxiliary::Utilities::cleanup(window);
         SDL_Quit();
         return -1;
     }
-    //SDL_RenderSetLogicalSize(renderer, Renderer::screen_width, Renderer::screen_height);
 
     // create a texture for displaying images
     SDL_Texture* texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_BGR24, SDL_TEXTUREACCESS_STREAMING, img.cols, img.rows);
     if (renderer == NULL) {
-        sdl::auxiliary::Utilities::logSDLError(std::cout, "SDL_CreateTexture");
+        std::cerr << "Error in SDL_CreateTexture: " << SDL_GetError() << std::endl;
         sdl::auxiliary::Utilities::cleanup(window, renderer);
         SDL_Quit();
         return -1;
@@ -507,7 +605,7 @@ int main(int argc, char* argv[]) {
     // setup text rendering
     TTF_Font* font = TTF_OpenFont("fonts/lazy.ttf", 16);
     if (font == NULL) {
-        sdl::auxiliary::Utilities::logSDLError(std::cout, "TTF_OpenFont");
+        std::cerr << "Error in TTF_OpenFont: " << SDL_GetError() << std::endl;
         sdl::auxiliary::Utilities::cleanup(window, renderer, texture);
         SDL_Quit();
         return -1;
@@ -515,40 +613,14 @@ int main(int argc, char* argv[]) {
     SDL_Color textColor = {0, 255, 0};
 
 #ifdef LUMAX_OUTPUT
-    // open Lumax device
-    int NumOfCards = Lumax_GetPhysicalDevices();
-    void* lumaxHandle = NULL;
-    printf("Number of MiniLumax devices: %i\n", NumOfCards);
-    if (NumOfCards > 0)
-    {
-        lumaxHandle = Lumax_OpenDevice(1, 0);
-        printf("Lumax_OpenDevice returned handle: 0x%lx\n", (unsigned long)lumaxHandle);
-        if (lumaxHandle == NULL) {
-            sdl::auxiliary::Utilities::logSDLError(std::cout, "Lumax_OpenDevice");
-            sdl::auxiliary::Utilities::cleanup(window, renderer, texture);
-            SDL_Quit();
-            return 1;
-        }
-    }
-
-    // TODO: read these parameters from the command line
-    LumaxRenderer lumaxRenderer;
-    lumaxRenderer.mirrorFactX = -1;
-    lumaxRenderer.mirrorFactY = 1;
-    // scaling of the laser output in respect to the SDL screen
-    lumaxRenderer.scalingX = 0.2;
-    lumaxRenderer.scalingY = 0.15;
-    lumaxRenderer.swapXY = 0;
-
+    // before we start: do the color calibration routine
     if (parameters.doColorCorrection == true)
         colorCorrection(lumaxHandle, lumaxRenderer, renderer, font);
 #endif
 
-    // logic
+    // the event structure
     bool quit = false;
     bool pause = false;
-
-    // the event structure
     SDL_Event e;
     while (!quit) {
         // start the fps timer
@@ -575,7 +647,7 @@ int main(int argc, char* argv[]) {
 #endif
 
         if (!pause) {
-            img = readInputSource(input, capture, inputtype, crop);
+            img = readInputSource(parameters.inputFile, capture, parameters.inputtype, parameters.crop);
         }
 #if OCVSTEP == 0
         cv::Mat display = img.clone();
@@ -702,11 +774,6 @@ int main(int argc, char* argv[]) {
                     red   *= colorFactor;
                 }
 
-                // TODO: DEBUG
-                /*blue = 255;
-                red = 255;
-                green = 0 * 255;*/
-
                 // Points for Laser output
                 if (std::sqrt(distanceSq(XYPoint<int>({l[0], l[1]}), XYPoint<int>({lastLaser[0], lastLaser[1]}))) > parameters.fillShortBlanks) {
                     // blank move
@@ -783,8 +850,8 @@ int main(int argc, char* argv[]) {
         // increment the frame number
         frame++;
         // apply the fps cap
-        if ((cap == true) && (fps.getTicks() < 1000 / maxFramesPerSecond) ) {
-            SDL_Delay((1000 / maxFramesPerSecond) - fps.getTicks() );
+        if ((cap == true) && (fps.getTicks() < 1000 / parameters.maxFramesPerSecond) ) {
+            SDL_Delay((1000 / parameters.maxFramesPerSecond) - fps.getTicks() );
         }
     }
 
