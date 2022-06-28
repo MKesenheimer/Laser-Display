@@ -62,14 +62,6 @@ struct Parameters {
 
     // SDL specific
     int maxFramesPerSecond = 20;
-
-#ifdef LUMAX_OUTPUT
-    int mirrorFactX = -1;
-    int mirrorFactY = 1;
-    float scalingX = 0.2;
-    float scalingY = 0.15;
-    int swapXY = 0;
-#endif
 };
 
 template<typename T> 
@@ -437,9 +429,11 @@ int getParameters(int argc, char* argv[], Parameters& parameters) {
         std::cout << "Crop size: (" << parameters.crop[0] << ", " << parameters.crop[1] << ", " << parameters.crop[2] << ", " << parameters.crop[3] << ")" << std::endl;
     }
 
-    // TODO: read in Lumax Renderer options from stdin
+    return 0;
+}
 
-
+#ifdef LUMAX_OUTPUT
+int getLumaxParameters(int argc, char* argv[], Renderer::LumaxParameters& parameters) {
     // read config from file
     libconfig::Config cfg;
     // Read the file. If there is an error, report it and exit.
@@ -466,23 +460,36 @@ int getParameters(int argc, char* argv[], Parameters& parameters) {
     const libconfig::Setting& root = cfg.getRoot();
     try {
         const libconfig::Setting &colorCorrection = root["application"]["color-correction"];
-        float ar, br, cr;
-        float ag, bg, cg;
-        float ab, bb, cb;
-        colorCorrection.lookupValue("ar", ar);
-        colorCorrection.lookupValue("br", br);
-        colorCorrection.lookupValue("cr", cr);
-        colorCorrection.lookupValue("ag", ag);
-        colorCorrection.lookupValue("bg", bg);
-        colorCorrection.lookupValue("cg", cg);
-        colorCorrection.lookupValue("ab", ab);
-        colorCorrection.lookupValue("bb", bb);
-        colorCorrection.lookupValue("cb", cb);
-        std::cout << "ar = " << ar << std::endl;
+        colorCorrection.lookupValue("ar", parameters.colorCorr.ar);
+        colorCorrection.lookupValue("br", parameters.colorCorr.br);
+        colorCorrection.lookupValue("cr", parameters.colorCorr.cr);
+        colorCorrection.lookupValue("ag", parameters.colorCorr.ag);
+        colorCorrection.lookupValue("bg", parameters.colorCorr.bg);
+        colorCorrection.lookupValue("cg", parameters.colorCorr.cg);
+        colorCorrection.lookupValue("ab", parameters.colorCorr.ab);
+        colorCorrection.lookupValue("bb", parameters.colorCorr.bb);
+        colorCorrection.lookupValue("cb", parameters.colorCorr.cb);
+        std::cout << "ar = " << parameters.colorCorr.ar;
+        std::cout << ", br = " << parameters.colorCorr.br;
+        std::cout << ", cr = " << parameters.colorCorr.cr << std::endl;
+        std::cout << "ag = " << parameters.colorCorr.ag;
+        std::cout << ", bg = " << parameters.colorCorr.bg;
+        std::cout << ", cg = " << parameters.colorCorr.cg << std::endl;
+        std::cout << "ab = " << parameters.colorCorr.ab;
+        std::cout << ", bb = " << parameters.colorCorr.bb;
+        std::cout <<  ", cb = " << parameters.colorCorr.cb << std::endl;
     } catch(const libconfig::SettingNotFoundException &nfex) {} // Ignore
+
+
+    parameters.mirrorFactX = -1;
+    parameters.mirrorFactY = 1;
+    parameters.scalingX = 0.2;
+    parameters.scalingY = 0.15;
+    parameters.swapXY = 0;
 
     return 0;
 }
+#endif
 
 int main(int argc, char* argv[]) {
     Parameters parameters;
@@ -505,11 +512,7 @@ int main(int argc, char* argv[]) {
 
     // declare the lumax renderer
     Renderer::LumaxRenderer lumaxRenderer;
-    lumaxRenderer.parameters.mirrorFactX = parameters.mirrorFactX;
-    lumaxRenderer.parameters.mirrorFactY = parameters.mirrorFactY;
-    lumaxRenderer.parameters.scalingX = parameters.scalingX;
-    lumaxRenderer.parameters.scalingY = parameters.scalingY;
-    lumaxRenderer.parameters.swapXY = parameters.swapXY;
+    ret = getLumaxParameters(argc, argv, lumaxRenderer.parameters);
 #endif
 
     // take records of frame number
