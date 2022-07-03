@@ -44,20 +44,20 @@ struct Parameters {
     libconfig::Config config;
 
     // renderer options
-    int width = 900;
-    int height = 600;
+    int width;
+    int height;
 
     // opencv specific
-    int fillShortBlanks = 10;
-    int lightThreshold = 50;
-    int interThreshold = 10;
-    int minLineLength = 0;
-    int maxLineGap = 4;
-    int blursize = 17;
-    int upperThreshold = 30;
-    int lowerThreshold = 10;
-    int rResolution = 1;
-    float thetaResolution = 10 * CV_PI / 180; // 10°
+    int fillShortBlanks;
+    int lightThreshold;
+    int interThreshold;
+    int minLineLength;
+    int maxLineGap;
+    int blursize;
+    int upperThreshold;
+    int lowerThreshold;
+    int rResolution;
+    float thetaResolution;
     bool blankMoves = false;
     bool doColorCorrection = false;
     bool colorBoost = true;
@@ -316,6 +316,8 @@ void colorCorrection(void* lumaxHandle, Renderer::LumaxRenderer& ren, SDL_Render
     ren.parameters.colorCorr.ab = static_cast<float>(coeffBlu[2]);
     ren.parameters.colorCorr.bb = static_cast<float>(coeffBlu[1]);
     ren.parameters.colorCorr.cb = static_cast<float>(coeffBlu[0]);
+
+    // TODO: write coefficients to file
 }
 #endif
 
@@ -412,6 +414,7 @@ int getParameters(int argc, char* argv[], Parameters& parameters) {
         std::cerr << "No 'version' setting in configuration file." << std::endl;
         return -1;
     }
+    const libconfig::Setting& root = parameters.config.getRoot();
 
     // read input file
     parameters.inputFile = sdl::auxiliary::CommandLineParser::readCmdNormalized(argv, argv + argc, "-i");
@@ -446,7 +449,11 @@ int getParameters(int argc, char* argv[], Parameters& parameters) {
         std::cout << "max FPS: " << parameters.maxFramesPerSecond << std::endl;
     } else {
         std::cout << "Reading max FPS from config file." << std::endl;
-        // TODO
+        // read maxFPS parameter from config file
+        try {
+            const libconfig::Setting &windowsettings = root["application"]["window"];
+            windowsettings.lookupValue("maxFPS", parameters.maxFramesPerSecond);
+        } catch(const libconfig::SettingNotFoundException &nfex) {} // Ignore
     }
 
     // screen dimensions
@@ -456,14 +463,18 @@ int getParameters(int argc, char* argv[], Parameters& parameters) {
         parameters.height = sdl::auxiliary::CommandLineParser::readCmdOption<int>(argv, argv + argc, "-y", 0, INT_MAX);
         if (parameters.width == 0 && parameters.height == 0) {
             std::cout << "Using original dimensions of input source." << std::endl;
-        } else {
-            std::cout << "Screen width: " << parameters.width << std::endl;
-            std::cout << "Screen height: " << parameters.height << std::endl;
         }
     } else {
         std::cout << "Reading screen dimensions from config file." << std::endl;
-        // TODO
+        // read screen dimension parameter from config file
+        try {
+            const libconfig::Setting &windowsettings = root["application"]["window"]["size"];
+            windowsettings.lookupValue("width", parameters.width);
+            windowsettings.lookupValue("height", parameters.height);
+        } catch(const libconfig::SettingNotFoundException &nfex) {} // Ignore
     }
+    std::cout << "Screen width: " << parameters.width << std::endl;
+    std::cout << "Screen height: " << parameters.height << std::endl;
 
     // read in crop size:
     if (sdl::auxiliary::CommandLineParser::cmdOptionExists(argv, argv + argc, "-c")) {
@@ -473,10 +484,23 @@ int getParameters(int argc, char* argv[], Parameters& parameters) {
                 parameters.crop[i] = cropv[i];
             std::cout << "Crop size: (" << parameters.crop[0] << ", " << parameters.crop[1] << ", " << parameters.crop[2] << ", " << parameters.crop[3] << ")" << std::endl;
         }
-    } else {
-        std::cout << "Reading crop size from config file." << std::endl;
-        // TODO
     }
+
+    // read openCV parameters from config file
+    try {
+        const libconfig::Setting &opencv = root["application"]["opencv"];
+        opencv.lookupValue("fillShortBlanks", parameters.fillShortBlanks);
+        opencv.lookupValue("lightThreshold", parameters.lightThreshold);
+        opencv.lookupValue("interThreshold", parameters.interThreshold);
+        opencv.lookupValue("minLineLength", parameters.minLineLength);
+        opencv.lookupValue("maxLineGap", parameters.maxLineGap);
+        opencv.lookupValue("blursize", parameters.blursize);
+        opencv.lookupValue("upperThreshold", parameters.upperThreshold);
+        opencv.lookupValue("lowerThreshold", parameters.lowerThreshold);
+        opencv.lookupValue("rResolution", parameters.rResolution);
+        opencv.lookupValue("thetaResolution", parameters.thetaResolution);
+        opencv.lookupValue("colorBoost", parameters.colorBoost);
+    } catch(const libconfig::SettingNotFoundException &nfex) {} // Ignore
 
     return 0;
 }
