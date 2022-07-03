@@ -110,7 +110,7 @@ cv::Mat readInputSource(const std::string& input, cv::VideoCapture& capture, Inp
 
 #if LUMAX_OUTPUT
 // TODO: move to seperate file
-void colorCorrection(void* lumaxHandle, Renderer::LumaxRenderer& ren, SDL_Renderer* renderer, TTF_Font* font) {
+void colorCorrection(void* lumaxHandle, Renderer::LumaxRenderer& ren, SDL_Renderer* renderer, TTF_Font* font, Parameters& parameters) {
     sdl::auxiliary::Timer fps;
     SDL_Event e;
     bool quit = false;
@@ -317,7 +317,25 @@ void colorCorrection(void* lumaxHandle, Renderer::LumaxRenderer& ren, SDL_Render
     ren.parameters.colorCorr.bb = static_cast<float>(coeffBlu[1]);
     ren.parameters.colorCorr.cb = static_cast<float>(coeffBlu[0]);
 
-    // TODO: write coefficients to file
+    // write coefficients to file
+    if (parameters.configFile != std::string()) {
+        libconfig::Setting& root = parameters.config.getRoot();
+        try {
+            libconfig::Setting& colorCorrection = root["lumax"]["color-correction"];
+            colorCorrection["ar"] = static_cast<float>(ren.parameters.colorCorr.ar);
+            colorCorrection["br"] = static_cast<float>(ren.parameters.colorCorr.br);
+            colorCorrection["cr"] = static_cast<float>(ren.parameters.colorCorr.cr);
+            colorCorrection["ag"] = static_cast<float>(ren.parameters.colorCorr.ag);
+            colorCorrection["bg"] = static_cast<float>(ren.parameters.colorCorr.bg);
+            colorCorrection["cg"] = static_cast<float>(ren.parameters.colorCorr.cg);
+            colorCorrection["ab"] = static_cast<float>(ren.parameters.colorCorr.ab);
+            colorCorrection["bb"] = static_cast<float>(ren.parameters.colorCorr.bb);
+            colorCorrection["cb"] = static_cast<float>(ren.parameters.colorCorr.cb);
+            parameters.config.writeFile(parameters.configFile.c_str());
+        } catch(const libconfig::SettingNotFoundException &nfex) {} // Ignore*/
+    } else {
+        std::cerr << "configFile not defined." << std::endl;
+    }
 }
 #endif
 
@@ -386,17 +404,17 @@ int getParameters(int argc, char* argv[], Parameters& parameters) {
         parameters.doColorCorrection = true;
 
     // define config file
-    std::string configfile = sdl::auxiliary::CommandLineParser::readCmdNormalized(argv, argv + argc, "-k");
-    if (configfile == std::string()) {
-        configfile = "config.cfg";
-        std::cout << "Using default configuration file " << configfile << std::endl;
+    parameters.configFile = sdl::auxiliary::CommandLineParser::readCmdNormalized(argv, argv + argc, "-k");
+    if (parameters.configFile == std::string()) {
+        parameters.configFile = "config.cfg";
+        std::cout << "Using default configuration file " << parameters.configFile << std::endl;
     } else {
-        std::cout << "Reading configuration from file " << configfile << std::endl;
+        std::cout << "Reading configuration from file " << parameters.configFile << std::endl;
     }
 
     // Read cpnfig from file. If there is an error, report it and exit.
     try {
-        parameters.config.readFile(configfile.c_str());
+        parameters.config.readFile(parameters.configFile.c_str());
     } catch(const libconfig::FileIOException &fioex) {
         std::cerr << "I/O error while reading file: File does not exist." << std::endl;
         return -1;
@@ -451,7 +469,7 @@ int getParameters(int argc, char* argv[], Parameters& parameters) {
         std::cout << "Reading max FPS from config file." << std::endl;
         // read maxFPS parameter from config file
         try {
-            const libconfig::Setting &windowsettings = root["application"]["window"];
+            const libconfig::Setting& windowsettings = root["application"]["window"];
             windowsettings.lookupValue("maxFPS", parameters.maxFramesPerSecond);
         } catch(const libconfig::SettingNotFoundException &nfex) {} // Ignore
     }
@@ -468,7 +486,7 @@ int getParameters(int argc, char* argv[], Parameters& parameters) {
         std::cout << "Reading screen dimensions from config file." << std::endl;
         // read screen dimension parameter from config file
         try {
-            const libconfig::Setting &windowsettings = root["application"]["window"]["size"];
+            const libconfig::Setting& windowsettings = root["application"]["window"]["size"];
             windowsettings.lookupValue("width", parameters.width);
             windowsettings.lookupValue("height", parameters.height);
         } catch(const libconfig::SettingNotFoundException &nfex) {} // Ignore
@@ -488,7 +506,7 @@ int getParameters(int argc, char* argv[], Parameters& parameters) {
 
     // read openCV parameters from config file
     try {
-        const libconfig::Setting &opencv = root["application"]["opencv"];
+        const libconfig::Setting& opencv = root["application"]["opencv"];
         opencv.lookupValue("fillShortBlanks", parameters.fillShortBlanks);
         opencv.lookupValue("lightThreshold", parameters.lightThreshold);
         opencv.lookupValue("interThreshold", parameters.interThreshold);
@@ -509,7 +527,7 @@ int getParameters(int argc, char* argv[], Parameters& parameters) {
 int getLumaxParameters(const libconfig::Config& config, Renderer::LumaxParameters& parameters) {
     const libconfig::Setting& root = config.getRoot();
     try {
-        const libconfig::Setting &colorCorrection = root["lumax"]["color-correction"];
+        libconfig::Setting& colorCorrection = root["lumax"]["color-correction"];
         colorCorrection.lookupValue("ar", parameters.colorCorr.ar);
         colorCorrection.lookupValue("br", parameters.colorCorr.br);
         colorCorrection.lookupValue("cr", parameters.colorCorr.cr);
@@ -532,7 +550,7 @@ int getLumaxParameters(const libconfig::Config& config, Renderer::LumaxParameter
     } catch(const libconfig::SettingNotFoundException &nfex) {} // Ignore
 
     try {
-        const libconfig::Setting &layout = root["lumax"]["layout"];
+        const libconfig::Setting& layout = root["lumax"]["layout"];
         layout.lookupValue("mirrorFactX", parameters.mirrorFactX);
         layout.lookupValue("mirrorFactY", parameters.mirrorFactY);
         layout.lookupValue("scalingX", parameters.scalingX);
@@ -547,7 +565,7 @@ int getLumaxParameters(const libconfig::Config& config, Renderer::LumaxParameter
 
 int main(int argc, char* argv[]) {
     Parameters parameters;
-    int ret = getParameters(argc, argv, parameters);    
+    int ret = getParameters(argc, argv, parameters);
 
 #ifdef LUMAX_OUTPUT
     // open Lumax device
@@ -662,7 +680,7 @@ int main(int argc, char* argv[]) {
 #ifdef LUMAX_OUTPUT
     // before we start: do the color calibration routine
     if (parameters.doColorCorrection == true)
-        colorCorrection(lumaxHandle, lumaxRenderer, renderer, font);
+        colorCorrection(lumaxHandle, lumaxRenderer, renderer, font, parameters);
 #endif
 
     // the event structure
