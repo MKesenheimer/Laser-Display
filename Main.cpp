@@ -40,6 +40,8 @@ struct Parameters {
     std::array<int, 4> crop = {0, 0, 0, 0};
     InputType inputtype = InputType::image;
     std::string inputFile;
+    std::string configFile;
+    libconfig::Config config;
 
     // renderer options
     int width = 900;
@@ -75,10 +77,11 @@ void usage(char* argv[]) {
     std::cout << "Usage:" << std::endl << argv[0] << " -i <path/filename> [options]" << std::endl;
     std::cout << "Options:" << std::endl;
     std::cout << "-h                                                   display help message" << std::endl;
-    std::cout << "-i <path/filename>                                   input file to render" << std::endl;
+    std::cout << "-i <input filename>                                  path to input file to render" << std::endl;
     std::cout << "-x <width>                                           display width" << std::endl;
     std::cout << "-y <height>                                          display height" << std::endl;
     std::cout << "-c <crop-left>,<crop-up>,<crop-right>,<crop-down>    crop dimensions" << std::endl;
+    std::cout << "-k <config filename>                                 path to config file" << std::endl;
 
     std::exit(-1);
 }
@@ -380,6 +383,36 @@ int getParameters(int argc, char* argv[], Parameters& parameters) {
     if (sdl::auxiliary::CommandLineParser::cmdOptionExists(argv, argv + argc, "-q"))
         parameters.doColorCorrection = true;
 
+    // define config file
+    std::string configfile = sdl::auxiliary::CommandLineParser::readCmdNormalized(argv, argv + argc, "-k");
+    if (configfile == std::string()) {
+        configfile = "config.cfg";
+        std::cout << "Using default configuration file " << configfile << std::endl;
+    } else {
+        std::cout << "Reading configuration from file " << configfile << std::endl;
+    }
+
+    // Read cpnfig from file. If there is an error, report it and exit.
+    try {
+        parameters.config.readFile(configfile.c_str());
+    } catch(const libconfig::FileIOException &fioex) {
+        std::cerr << "I/O error while reading file: File does not exist." << std::endl;
+        return -1;
+    } catch(const libconfig::ParseException &pex) {
+        std::cerr << "Parse error at " << pex.getFile() << ":" << pex.getLine()
+                  << " - " << pex.getError() << std::endl;
+        return -1;
+    }
+
+    // Get the version of the config file
+    try {
+        std::string version = parameters.config.lookup("version");
+        std::cout << "Version: " << version << std::endl << std::endl;
+    } catch(const libconfig::SettingNotFoundException &nfex) {
+        std::cerr << "No 'version' setting in configuration file." << std::endl;
+        return -1;
+    }
+
     // read input file
     parameters.inputFile = sdl::auxiliary::CommandLineParser::readCmdNormalized(argv, argv + argc, "-i");
     if (parameters.inputFile == std::string()) {
@@ -408,58 +441,51 @@ int getParameters(int argc, char* argv[], Parameters& parameters) {
     }
 
     // read max FPS
-    parameters.maxFramesPerSecond = sdl::auxiliary::CommandLineParser::readCmdOption<int>(argv, argv + argc, "-f", 1, 100);
-    std::cout << "max FPS: " << parameters.maxFramesPerSecond << std::endl;
+    if (sdl::auxiliary::CommandLineParser::cmdOptionExists(argv, argv + argc, "-f")) {
+        parameters.maxFramesPerSecond = sdl::auxiliary::CommandLineParser::readCmdOption<int>(argv, argv + argc, "-f", 1, 100);
+        std::cout << "max FPS: " << parameters.maxFramesPerSecond << std::endl;
+    } else {
+        std::cout << "Reading max FPS from config file." << std::endl;
+        // TODO
+    }
 
     // screen dimensions
-    parameters.width = sdl::auxiliary::CommandLineParser::readCmdOption<int>(argv, argv + argc, "-x", 0, INT_MAX);
-    parameters.height = sdl::auxiliary::CommandLineParser::readCmdOption<int>(argv, argv + argc, "-y", 0, INT_MAX);
-    if (parameters.width == 0 && parameters.height == 0) {
-        std::cout << "Using original dimensions of input source." << std::endl;
+    if (sdl::auxiliary::CommandLineParser::cmdOptionExists(argv, argv + argc, "-x") &&
+        sdl::auxiliary::CommandLineParser::cmdOptionExists(argv, argv + argc, "-y")) {
+        parameters.width = sdl::auxiliary::CommandLineParser::readCmdOption<int>(argv, argv + argc, "-x", 0, INT_MAX);
+        parameters.height = sdl::auxiliary::CommandLineParser::readCmdOption<int>(argv, argv + argc, "-y", 0, INT_MAX);
+        if (parameters.width == 0 && parameters.height == 0) {
+            std::cout << "Using original dimensions of input source." << std::endl;
+        } else {
+            std::cout << "Screen width: " << parameters.width << std::endl;
+            std::cout << "Screen height: " << parameters.height << std::endl;
+        }
     } else {
-        std::cout << "Screen width: " << parameters.width << std::endl;
-        std::cout << "Screen height: " << parameters.height << std::endl;
+        std::cout << "Reading screen dimensions from config file." << std::endl;
+        // TODO
     }
 
     // read in crop size:
-    std::vector<int> cropv = sdl::auxiliary::CommandLineParser::readCmdOptionList<int>(argv, argv + argc, "-c", 0, INT_MAX);
-    if (cropv.size() == 4) {
-        for (size_t i = 0; i < cropv.size(); ++i)
-            parameters.crop[i] = cropv[i];
-        std::cout << "Crop size: (" << parameters.crop[0] << ", " << parameters.crop[1] << ", " << parameters.crop[2] << ", " << parameters.crop[3] << ")" << std::endl;
+    if (sdl::auxiliary::CommandLineParser::cmdOptionExists(argv, argv + argc, "-c")) {
+        std::vector<int> cropv = sdl::auxiliary::CommandLineParser::readCmdOptionList<int>(argv, argv + argc, "-c", 0, INT_MAX);
+        if (cropv.size() == 4) {
+            for (size_t i = 0; i < cropv.size(); ++i)
+                parameters.crop[i] = cropv[i];
+            std::cout << "Crop size: (" << parameters.crop[0] << ", " << parameters.crop[1] << ", " << parameters.crop[2] << ", " << parameters.crop[3] << ")" << std::endl;
+        }
+    } else {
+        std::cout << "Reading crop size from config file." << std::endl;
+        // TODO
     }
 
     return 0;
 }
 
 #ifdef LUMAX_OUTPUT
-int getLumaxParameters(int argc, char* argv[], Renderer::LumaxParameters& parameters) {
-    // read config from file
-    libconfig::Config cfg;
-    // Read the file. If there is an error, report it and exit.
+int getLumaxParameters(const libconfig::Config& config, Renderer::LumaxParameters& parameters) {
+    const libconfig::Setting& root = config.getRoot();
     try {
-        cfg.readFile("config.cfg");
-    } catch(const libconfig::FileIOException &fioex) {
-        std::cerr << "I/O error while reading file." << std::endl;
-        return -1;
-    } catch(const libconfig::ParseException &pex) {
-        std::cerr << "Parse error at " << pex.getFile() << ":" << pex.getLine()
-                  << " - " << pex.getError() << std::endl;
-        return -1;
-    }
-
-    // Get the version
-    try {
-        std::string version = cfg.lookup("version");
-        std::cout << "Version: " << version << std::endl << std::endl;
-    } catch(const libconfig::SettingNotFoundException &nfex) {
-        std::cerr << "No 'version' setting in configuration file." << std::endl;
-        return -1;
-    }
-
-    const libconfig::Setting& root = cfg.getRoot();
-    try {
-        const libconfig::Setting &colorCorrection = root["application"]["color-correction"];
+        const libconfig::Setting &colorCorrection = root["lumax"]["color-correction"];
         colorCorrection.lookupValue("ar", parameters.colorCorr.ar);
         colorCorrection.lookupValue("br", parameters.colorCorr.br);
         colorCorrection.lookupValue("cr", parameters.colorCorr.cr);
@@ -469,6 +495,7 @@ int getLumaxParameters(int argc, char* argv[], Renderer::LumaxParameters& parame
         colorCorrection.lookupValue("ab", parameters.colorCorr.ab);
         colorCorrection.lookupValue("bb", parameters.colorCorr.bb);
         colorCorrection.lookupValue("cb", parameters.colorCorr.cb);
+        std::cout << "Color correction coefficients:" << std::endl;
         std::cout << "ar = " << parameters.colorCorr.ar;
         std::cout << ", br = " << parameters.colorCorr.br;
         std::cout << ", cr = " << parameters.colorCorr.cr << std::endl;
@@ -480,12 +507,15 @@ int getLumaxParameters(int argc, char* argv[], Renderer::LumaxParameters& parame
         std::cout <<  ", cb = " << parameters.colorCorr.cb << std::endl;
     } catch(const libconfig::SettingNotFoundException &nfex) {} // Ignore
 
-
-    parameters.mirrorFactX = -1;
-    parameters.mirrorFactY = 1;
-    parameters.scalingX = 0.2;
-    parameters.scalingY = 0.15;
-    parameters.swapXY = 0;
+    try {
+        const libconfig::Setting &layout = root["lumax"]["layout"];
+        layout.lookupValue("mirrorFactX", parameters.mirrorFactX);
+        layout.lookupValue("mirrorFactY", parameters.mirrorFactY);
+        layout.lookupValue("scalingX", parameters.scalingX);
+        layout.lookupValue("scalingY", parameters.scalingY);
+        layout.lookupValue("swapXY", parameters.swapXY);
+        
+    } catch(const libconfig::SettingNotFoundException &nfex) {} // Ignore
 
     return 0;
 }
@@ -512,7 +542,7 @@ int main(int argc, char* argv[]) {
 
     // declare the lumax renderer
     Renderer::LumaxRenderer lumaxRenderer;
-    ret = getLumaxParameters(argc, argv, lumaxRenderer.parameters);
+    ret = getLumaxParameters(parameters.config, lumaxRenderer.parameters);
 #endif
 
     // take records of frame number
