@@ -34,7 +34,7 @@ SYSTEMINC  = /opt/local/include
 LIBS       = $(WORKINGDIR)/libs
 EIGEN      = $(LIBS)/eigen
 GTEST      = $(LIBS)/googletest
-LIBLUMAX   = $(LIBS)/lumax
+LIBLUMAX   = $(LIBS)/lumax/libs
 LIBGTEST   = $(LIBS)/googletest/build/lib
 
 ########################################################################
@@ -64,7 +64,8 @@ CXX += $(shell pkg-config --cflags opencv4)
 LDFLAGS += $(shell pkg-config --libs opencv4)
 
 ### Lumax
-LDFLAGS += -L$(LIBLUMAX) -llumax 
+# TODO: make this OS dependent
+LDFLAGS += -L$(LIBLUMAX) -llumax_darwin 
 
 ### libconfig
 LDFLAGS += -lconfig++
