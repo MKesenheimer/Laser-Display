@@ -57,7 +57,7 @@ INCLUDE = $(wildcard *.h $(UINCLUDE)/*.h)
 ## libraries
 ### SDL
 CXX += $(shell sdl2-config --cflags)
-LDFLAGS += $(shell sdl2-config --static-libs) -lSDL2_gfx -lSDL2_image -lSDL2_ttf
+LDFLAGS += $(shell sdl2-config --libs) -lSDL2_gfx -lSDL2_image -lSDL2_ttf
 
 ### OpenCV
 CXX += $(shell pkg-config --cflags opencv4)
