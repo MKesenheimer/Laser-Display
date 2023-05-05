@@ -14,17 +14,17 @@
 #include <SDL_ttf.h>
 #include <libconfig.h++>
 
-#include "SDLTools/Utilities.h"
-#include "SDLTools/Timer.h"
-#include "SDLTools/CommandLineParser.h"
-#include "GameLibrary/Point.h"
-#include "GameLibrary/Renderer.h"
-#include "GameLibrary/Algorithms.h"
-#include "GameLibrary/Sort.h"
+#include "SDLTools/utilities.h"
+#include "SDLTools/timer.h"
+#include "SDLTools/commandlineparser.h"
+#include "GameLibrary/point.h"
+#include "GameLibrary/renderer.h"
+#include "GameLibrary/algorithms.h"
+#include "GameLibrary/sort.h"
 #include "GameLibrary/vector.h"
 #include "GameLibrary/matrix.h"
 #include "GameLibrary/operators.h"
-#include "GameLibrary/Fit.h"
+#include "GameLibrary/fit.h"
 
 #define OCVSTEP 0
 #define MEASURETIME
@@ -67,7 +67,7 @@ struct Parameters {
 };
 
 template<typename T> 
-T distanceSq(XYPoint<T> a, XYPoint<T> b) {
+T distanceSq(types::xypoint<T> a, types::xypoint<T> b) {
     T deltaX = a.first - b.first;
     T deltaY = a.second - b.second;
     return (deltaX * deltaX + deltaY * deltaY);
@@ -96,10 +96,10 @@ cv::Mat readInputSource(const std::string& input, cv::VideoCapture& capture, Inp
         capture >> img;
     
         if (cropDim[0] != 0 || cropDim[1] != 0 || cropDim[2] != 0 || cropDim[3] != 0) {
-            cropDim[0] = Algorithms::constrain(cropDim[0], 0, img.cols / 2);
-            cropDim[1] = Algorithms::constrain(cropDim[1], 0, img.rows / 2);
-            cropDim[2] = Algorithms::constrain(cropDim[2], 0, img.cols / 2);
-            cropDim[3] = Algorithms::constrain(cropDim[3], 0, img.rows / 2);
+            cropDim[0] = algorithms::constrain(cropDim[0], 0, img.cols / 2);
+            cropDim[1] = algorithms::constrain(cropDim[1], 0, img.rows / 2);
+            cropDim[2] = algorithms::constrain(cropDim[2], 0, img.cols / 2);
+            cropDim[3] = algorithms::constrain(cropDim[3], 0, img.rows / 2);
             // Crop the full image to that image contained by the rectangle crop
             cv::Rect crop(cropDim[0], cropDim[1], img.cols - cropDim[0] - cropDim[2], img.rows - cropDim[1] - cropDim[3]);
             img = img(crop);
@@ -110,8 +110,8 @@ cv::Mat readInputSource(const std::string& input, cv::VideoCapture& capture, Inp
 
 #if LUMAX_OUTPUT
 // TODO: move to seperate file
-void colorCorrection(void* lumaxHandle, Renderer::LumaxRenderer& ren, SDL_Renderer* renderer, TTF_Font* font, Parameters& parameters) {
-    sdl::auxiliary::Timer fps;
+void colorCorrection(void* lumaxHandle, renderer::lumaxRenderer& ren, SDL_Renderer* renderer, TTF_Font* font, Parameters& parameters) {
+    sdl::auxiliary::timer fps;
     SDL_Event e;
     bool quit = false;
     bool done = false;
@@ -232,50 +232,50 @@ void colorCorrection(void* lumaxHandle, Renderer::LumaxRenderer& ren, SDL_Render
 
             const uint8_t* keystate = SDL_GetKeyboardState(NULL);
             if (keystate[SDL_SCANCODE_Q]) {
-                r = Algorithms::constrain<int>(r + 1, 0, 255);
+                r = algorithms::constrain<int>(r + 1, 0, 255);
             }
             if (keystate[SDL_SCANCODE_A]) {
-                r = Algorithms::constrain<int>(r - 1, 0, 255);
+                r = algorithms::constrain<int>(r - 1, 0, 255);
             }
             if (keystate[SDL_SCANCODE_W]) {
-                g = Algorithms::constrain<int>(g + 1, 0, 255);
+                g = algorithms::constrain<int>(g + 1, 0, 255);
             }
             if (keystate[SDL_SCANCODE_S]) {
-                g = Algorithms::constrain<int>(g - 1, 0, 255);
+                g = algorithms::constrain<int>(g - 1, 0, 255);
             }
             if (keystate[SDL_SCANCODE_E]) {
-                b = Algorithms::constrain<int>(b + 1, 0, 255);
+                b = algorithms::constrain<int>(b + 1, 0, 255);
             }
             if (keystate[SDL_SCANCODE_D]) {
-                b = Algorithms::constrain<int>(b - 1, 0, 255);
+                b = algorithms::constrain<int>(b - 1, 0, 255);
             }
 
             // Draw the background black
             SDL_RenderClear(renderer);        
-            boxRGBA(renderer, 0, 0, Renderer::screen_width, Renderer::screen_height, 10, 10, 10, 255);
+            boxRGBA(renderer, 0, 0, renderer::screen_width, renderer::screen_height, 10, 10, 10, 255);
 
             // build text for displaying values
             SDL_Color textColor = {0, 255, 0};
-            sdl::auxiliary::Utilities::renderText(message, font, textColor, renderer, 25, 25);
-            std::string str = "(q+, a-): increase/decrease red " + Algorithms::typeToStr<int>(r);
-            sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 50);
-            str = "(w+, s-): increase/decrease green " + Algorithms::typeToStr<int>(g);
-            sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 75);
-            str = "(e+, d-): increase/decrease blue " + Algorithms::typeToStr<int>(b);
-            sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 100);
+            sdl::auxiliary::utilities::renderText(message, font, textColor, renderer, 25, 25);
+            std::string str = "(q+, a-): increase/decrease red " + algorithms::typeToStr<int>(r);
+            sdl::auxiliary::utilities::renderText(str, font, textColor, renderer, 25, 50);
+            str = "(w+, s-): increase/decrease green " + algorithms::typeToStr<int>(g);
+            sdl::auxiliary::utilities::renderText(str, font, textColor, renderer, 25, 75);
+            str = "(e+, d-): increase/decrease blue " + algorithms::typeToStr<int>(b);
+            sdl::auxiliary::utilities::renderText(str, font, textColor, renderer, 25, 100);
 
             // apply the renderer to the screen
             SDL_RenderPresent(renderer);
 
-            std::vector<Point<float>> points;
+            std::vector<types::point<float>> points;
             points.push_back({ 100,  100,   0,   0,   0, 255, false});
             points.push_back({ 100,  100, r, g, b, 255, false});
             points.push_back({-100,  100, r, g, b, 255, false});
             points.push_back({-100, -100, r, g, b, 255, false});
             points.push_back({ 100, -100, r, g, b, 255, false});
             points.push_back({ 100,  100, r, g, b, 255, false});
-            Renderer::drawPoints(points, ren);
-            Renderer::sendPointsToLumax(lumaxHandle, ren, 200);
+            renderer::drawPoints(points, ren);
+            renderer::sendPointsToLumax(lumaxHandle, ren, 200);
 
             // apply the fps cap
             if (fps.getTicks() < 1000 / 10) {
@@ -297,9 +297,9 @@ void colorCorrection(void* lumaxHandle, Renderer::LumaxRenderer& ren, SDL_Render
     for (size_t i = 0; i < matrixBlu.rows(); ++i)
         std::cout << "Pblu_" << i << " = (" << matrixBlu(i, 0) << ", " << matrixBlu(i, 1) << ")" << std::endl;
 
-    math::vector<double> coeffRed = math::utilities::Fit::polyFit<double>(matrixRed, 2);
-    math::vector<double> coeffGre = math::utilities::Fit::polyFit<double>(matrixGre, 2);
-    math::vector<double> coeffBlu = math::utilities::Fit::polyFit<double>(matrixBlu, 2);
+    math::vector<double> coeffRed = math::utilities::fit::polyFit<double>(matrixRed, 2);
+    math::vector<double> coeffGre = math::utilities::fit::polyFit<double>(matrixGre, 2);
+    math::vector<double> coeffBlu = math::utilities::fit::polyFit<double>(matrixBlu, 2);
 
     std::cout << "Color correction polynomials:" << std::endl;
     std::cout << "Pol_red(x) = " << coeffRed[0] << " + " << coeffRed[1] << " * x + " << coeffRed[2] << " * x^2" << std::endl; 
@@ -397,14 +397,14 @@ void handleKeyPress(Parameters& parameters) {
 
 int getParameters(int argc, char* argv[], Parameters& parameters) {
     // Check if all necessary command line arguments were provided
-    if (argc < 2 || sdl::auxiliary::CommandLineParser::cmdOptionExists(argv, argv + argc, "-h"))
+    if (argc < 2 || sdl::auxiliary::commandLineParser::cmdOptionExists(argv, argv + argc, "-h"))
         usage(argv);
 
-    if (sdl::auxiliary::CommandLineParser::cmdOptionExists(argv, argv + argc, "-q"))
+    if (sdl::auxiliary::commandLineParser::cmdOptionExists(argv, argv + argc, "-q"))
         parameters.doColorCorrection = true;
 
     // define config file
-    parameters.configFile = sdl::auxiliary::CommandLineParser::readCmdNormalized(argv, argv + argc, "-k");
+    parameters.configFile = sdl::auxiliary::commandLineParser::readCmdNormalized(argv, argv + argc, "-k");
     if (parameters.configFile == std::string()) {
         parameters.configFile = "config.cfg";
         std::cout << "Using default configuration file " << parameters.configFile << std::endl;
@@ -435,7 +435,7 @@ int getParameters(int argc, char* argv[], Parameters& parameters) {
     const libconfig::Setting& root = parameters.config.getRoot();
 
     // read input file
-    parameters.inputFile = sdl::auxiliary::CommandLineParser::readCmdNormalized(argv, argv + argc, "-i");
+    parameters.inputFile = sdl::auxiliary::commandLineParser::readCmdNormalized(argv, argv + argc, "-i");
     if (parameters.inputFile == std::string()) {
         std::cerr << "Error: no input given." << std::endl;
         usage(argv);
@@ -462,8 +462,8 @@ int getParameters(int argc, char* argv[], Parameters& parameters) {
     }
 
     // read max FPS
-    if (sdl::auxiliary::CommandLineParser::cmdOptionExists(argv, argv + argc, "-f")) {
-        parameters.maxFramesPerSecond = sdl::auxiliary::CommandLineParser::readCmdOption<int>(argv, argv + argc, "-f", 1, 100);
+    if (sdl::auxiliary::commandLineParser::cmdOptionExists(argv, argv + argc, "-f")) {
+        parameters.maxFramesPerSecond = sdl::auxiliary::commandLineParser::readCmdOption<int>(argv, argv + argc, "-f", 1, 100);
         std::cout << "max FPS: " << parameters.maxFramesPerSecond << std::endl;
     } else {
         std::cout << "Reading max FPS from config file." << std::endl;
@@ -475,10 +475,10 @@ int getParameters(int argc, char* argv[], Parameters& parameters) {
     }
 
     // screen dimensions
-    if (sdl::auxiliary::CommandLineParser::cmdOptionExists(argv, argv + argc, "-x") &&
-        sdl::auxiliary::CommandLineParser::cmdOptionExists(argv, argv + argc, "-y")) {
-        parameters.width = sdl::auxiliary::CommandLineParser::readCmdOption<int>(argv, argv + argc, "-x", 0, INT_MAX);
-        parameters.height = sdl::auxiliary::CommandLineParser::readCmdOption<int>(argv, argv + argc, "-y", 0, INT_MAX);
+    if (sdl::auxiliary::commandLineParser::cmdOptionExists(argv, argv + argc, "-x") &&
+        sdl::auxiliary::commandLineParser::cmdOptionExists(argv, argv + argc, "-y")) {
+        parameters.width = sdl::auxiliary::commandLineParser::readCmdOption<int>(argv, argv + argc, "-x", 0, INT_MAX);
+        parameters.height = sdl::auxiliary::commandLineParser::readCmdOption<int>(argv, argv + argc, "-y", 0, INT_MAX);
         if (parameters.width == 0 && parameters.height == 0) {
             std::cout << "Using original dimensions of input source." << std::endl;
         }
@@ -495,8 +495,8 @@ int getParameters(int argc, char* argv[], Parameters& parameters) {
     std::cout << "Screen height: " << parameters.height << std::endl;
 
     // read in crop size:
-    if (sdl::auxiliary::CommandLineParser::cmdOptionExists(argv, argv + argc, "-c")) {
-        std::vector<int> cropv = sdl::auxiliary::CommandLineParser::readCmdOptionList<int>(argv, argv + argc, "-c", 0, INT_MAX);
+    if (sdl::auxiliary::commandLineParser::cmdOptionExists(argv, argv + argc, "-c")) {
+        std::vector<int> cropv = sdl::auxiliary::commandLineParser::readCmdOptionList<int>(argv, argv + argc, "-c", 0, INT_MAX);
         if (cropv.size() == 4) {
             for (size_t i = 0; i < cropv.size(); ++i)
                 parameters.crop[i] = cropv[i];
@@ -524,7 +524,7 @@ int getParameters(int argc, char* argv[], Parameters& parameters) {
 }
 
 #ifdef LUMAX_OUTPUT
-int getLumaxParameters(const libconfig::Config& config, Renderer::LumaxParameters& parameters) {
+int getLumaxParameters(const libconfig::Config& config, renderer::lumaxParameters& parameters) {
     const libconfig::Setting& root = config.getRoot();
     try {
         libconfig::Setting& colorCorrection = root["lumax"]["color-correction"];
@@ -583,7 +583,7 @@ int main(int argc, char* argv[]) {
     }
 
     // declare the lumax renderer
-    Renderer::LumaxRenderer lumaxRenderer;
+    renderer::lumaxRenderer lumaxRenderer;
     ret = getLumaxParameters(parameters.config, lumaxRenderer.parameters);
 #endif
 
@@ -593,13 +593,13 @@ int main(int argc, char* argv[]) {
     bool cap = true;
 
     // Timer zum Festlegen der FPS
-    sdl::auxiliary::Timer fps;
+    sdl::auxiliary::timer fps;
     // Timer zum Errechnen der weltweit vergangenen Zeit
-    sdl::auxiliary::Timer worldtime;
+    sdl::auxiliary::timer worldtime;
     worldtime.start();
 
     // initialize random generator
-    sdl::auxiliary::Utilities::seed(time(NULL));
+    sdl::auxiliary::utilities::seed(time(NULL));
 
     // Initialize SDL_ttf
     if (TTF_Init() != 0) {
@@ -632,17 +632,17 @@ int main(int argc, char* argv[]) {
 
     // read image for the first time to get its dimensions
     cv::Mat img = readInputSource(parameters.inputFile, capture, parameters.inputtype, parameters.crop);
-    // sets the global variabls Renderer::screen_width and Renderer::screen_height
+    // sets the global variabls renderer::screen_width and renderer::screen_height
     if (parameters.width == 0 && parameters.height == 0) {
         // use the original dimensions
-        Renderer::setDimensions(img.cols, img.rows);
+        renderer::setDimensions(img.cols, img.rows);
     } else {
         // use fixed dimensions
-        Renderer::setDimensions(parameters.width, parameters.height);
+        renderer::setDimensions(parameters.width, parameters.height);
     }
 
     // Set up our window and renderer, this time let's put our window in the center of the screen
-    SDL_Window *window = SDL_CreateWindow("Laser-Display", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, Renderer::screen_width, Renderer::screen_height, SDL_WINDOW_SHOWN);
+    SDL_Window *window = SDL_CreateWindow("Laser-Display", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, renderer::screen_width, renderer::screen_height, SDL_WINDOW_SHOWN);
     if (window == NULL) {
         std::cerr << "Error in SDL_CreateWindow: " << SDL_GetError() << std::endl;
         SDL_Quit();
@@ -653,7 +653,7 @@ int main(int argc, char* argv[]) {
     SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
     if (renderer == NULL) {
         std::cerr << "Error in SDL_CreateRenderer: " << SDL_GetError() << std::endl;
-        sdl::auxiliary::Utilities::cleanup(window);
+        sdl::auxiliary::utilities::cleanup(window);
         SDL_Quit();
         return -1;
     }
@@ -662,7 +662,7 @@ int main(int argc, char* argv[]) {
     SDL_Texture* texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_BGR24, SDL_TEXTUREACCESS_STREAMING, img.cols, img.rows);
     if (renderer == NULL) {
         std::cerr << "Error in SDL_CreateTexture: " << SDL_GetError() << std::endl;
-        sdl::auxiliary::Utilities::cleanup(window, renderer);
+        sdl::auxiliary::utilities::cleanup(window, renderer);
         SDL_Quit();
         return -1;
     }
@@ -671,7 +671,7 @@ int main(int argc, char* argv[]) {
     TTF_Font* font = TTF_OpenFont("fonts/lazy.ttf", 16);
     if (font == NULL) {
         std::cerr << "Error in TTF_OpenFont: " << SDL_GetError() << std::endl;
-        sdl::auxiliary::Utilities::cleanup(window, renderer, texture);
+        sdl::auxiliary::utilities::cleanup(window, renderer, texture);
         SDL_Quit();
         return -1;
     }
@@ -782,7 +782,7 @@ int main(int argc, char* argv[]) {
         std::vector<cv::Vec4i> houghLines; // HoughLinesP: will hold the results of the detection
         HoughLinesP(edges, houghLines, parameters.rResolution, parameters.thetaResolution, parameters.interThreshold, parameters.minLineLength, parameters.maxLineGap);
         // sort the lines (TSP problem)
-        Sort::sortLines(houghLines);
+        sort::sortLines(houghLines);
 
         // Draw the lines
         cv::Mat lines = edges.clone(); // copy to have a matrix with the right size
@@ -804,30 +804,30 @@ int main(int argc, char* argv[]) {
 #endif
         // Draw the background black
         SDL_RenderClear(renderer);
-        boxRGBA(renderer, 0, 0, Renderer::screen_width, Renderer::screen_height, 10, 10, 10, 255);
+        boxRGBA(renderer, 0, 0, renderer::screen_width, renderer::screen_height, 10, 10, 10, 255);
 
 #ifdef OCVSTEP
         // render the image
         SDL_UpdateTexture(texture, NULL, (void*)display.data, display.step1());
-        SDL_Rect destRect = {0, 0, Renderer::screen_width, Renderer::screen_height};
+        SDL_Rect destRect = {0, 0, renderer::screen_width, renderer::screen_height};
         //std::cout << destRect.w << ", " << destRect.h << std::endl;
         SDL_RenderCopy(renderer, texture, NULL, &destRect);
         //SDL_RenderCopyEx(renderer, texture, NULL, &destRect, 0, NULL, SDL_FLIP_NONE);
 #endif
 
         // apply the lines to the renderers
-        std::vector<Point<float>> points;
+        std::vector<types::point<float>> points;
         points.reserve(15000); // TODO
-        int lastLaser[2] = {Renderer::screen_width / 2, Renderer::screen_height / 2};
-        int lastSDL[2] = {Renderer::screen_width / 2, Renderer::screen_height / 2};
+        int lastLaser[2] = {renderer::screen_width / 2, renderer::screen_height / 2};
+        int lastSDL[2] = {renderer::screen_width / 2, renderer::screen_height / 2};
         for(size_t i = 0; i < houghLines.size(); ++i) {
             cv::Vec4i l = houghLines[i];
-            cv::Vec3b intensity1 = lines.at<cv::Vec3b>(cv::Point(Algorithms::constrain<int>(l[0], 0, lines.cols - 1), Algorithms::constrain<int>(l[1], 0, lines.rows - 1)));
-            cv::Vec3b intensity2 = lines.at<cv::Vec3b>(cv::Point(Algorithms::constrain<int>(l[2], 0, lines.cols - 1), Algorithms::constrain<int>(l[3], 0, lines.rows - 1)));
+            cv::Vec3b intensity1 = lines.at<cv::Vec3b>(cv::Point(algorithms::constrain<int>(l[0], 0, lines.cols - 1), algorithms::constrain<int>(l[1], 0, lines.rows - 1)));
+            cv::Vec3b intensity2 = lines.at<cv::Vec3b>(cv::Point(algorithms::constrain<int>(l[2], 0, lines.cols - 1), algorithms::constrain<int>(l[3], 0, lines.rows - 1)));
             
-            int blue  = Algorithms::constrain<int>((intensity1.val[0] + intensity2.val[0]) / 2, 0, 255);
-            int green = Algorithms::constrain<int>((intensity1.val[1] + intensity2.val[1]) / 2, 0, 255);
-            int red   = Algorithms::constrain<int>((intensity1.val[2] + intensity2.val[2]) / 2, 0, 255);
+            int blue  = algorithms::constrain<int>((intensity1.val[0] + intensity2.val[0]) / 2, 0, 255);
+            int green = algorithms::constrain<int>((intensity1.val[1] + intensity2.val[1]) / 2, 0, 255);
+            int red   = algorithms::constrain<int>((intensity1.val[2] + intensity2.val[2]) / 2, 0, 255);
 
             // sort out dark lines
             if ((blue + green + red) >= parameters.lightThreshold) {
@@ -840,7 +840,7 @@ int main(int argc, char* argv[]) {
                 }
 
                 // Points for Laser output
-                if (std::sqrt(distanceSq(XYPoint<int>({l[0], l[1]}), XYPoint<int>({lastLaser[0], lastLaser[1]}))) > parameters.fillShortBlanks) {
+                if (std::sqrt(distanceSq(types::xypoint<int>({l[0], l[1]}), types::xypoint<int>({lastLaser[0], lastLaser[1]}))) > parameters.fillShortBlanks) {
                     // blank move
                     points.push_back({(float)lastLaser[0], (float)lastLaser[1], 0, 0, 0, 255, false});
                     points.push_back({(float)l[0], (float)l[1], 0, 0, 0, 255, false});
@@ -853,12 +853,12 @@ int main(int argc, char* argv[]) {
                 lastLaser[1] = l[3];
 
                 // Points for SDL output: Transform from original image dimensions to dimensions of the renderer's screen
-                l[0] = Renderer::transform(l[0], 0, img.cols, 0, Renderer::screen_width);
-                l[1] = Renderer::transform(l[1], 0, img.rows, 0, Renderer::screen_height);
-                l[2] = Renderer::transform(l[2], 0, img.cols, 0, Renderer::screen_width);
-                l[3] = Renderer::transform(l[3], 0, img.rows, 0, Renderer::screen_height);
+                l[0] = renderer::transform(l[0], 0, img.cols, 0, renderer::screen_width);
+                l[1] = renderer::transform(l[1], 0, img.rows, 0, renderer::screen_height);
+                l[2] = renderer::transform(l[2], 0, img.cols, 0, renderer::screen_width);
+                l[3] = renderer::transform(l[3], 0, img.rows, 0, renderer::screen_height);
                 // TODO: fillShortBlanks should be different in the SDL renderer context
-                if (std::sqrt(distanceSq(XYPoint<int>({l[0], l[1]}), XYPoint<int>({lastSDL[0], lastSDL[1]}))) <= parameters.fillShortBlanks)
+                if (std::sqrt(distanceSq(types::xypoint<int>({l[0], l[1]}), types::xypoint<int>({lastSDL[0], lastSDL[1]}))) <= parameters.fillShortBlanks)
                     lineRGBA(renderer, lastSDL[0], lastSDL[1], (int)l[0], (int)l[1], red, green, blue, 255);
                 else if (parameters.blankMoves)
                     lineRGBA(renderer, lastSDL[0], lastSDL[1], (int)l[0], (int)l[1], 0, 255, 255, 255); // blank move
@@ -870,8 +870,8 @@ int main(int argc, char* argv[]) {
         }
 
 #ifdef LUMAX_OUTPUT
-        Renderer::drawPoints(points, lumaxRenderer);
-        Renderer::sendPointsToLumax(lumaxHandle, lumaxRenderer, 20000);
+        renderer::drawPoints(points, lumaxRenderer);
+        renderer::sendPointsToLumax(lumaxHandle, lumaxRenderer, 20000);
 #endif
         
 #ifdef MEASURETIME
@@ -884,24 +884,24 @@ int main(int argc, char* argv[]) {
 #endif
 
         // build text for displaying values
-        std::string str = "FPS: " +  Algorithms::typeToStr<int>(1000.0f * frame / worldtime.getTicks());
-        sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 25);
-        str = "(w+, s-): General: fill shorts = " + Algorithms::typeToStr<int>(parameters.fillShortBlanks);
-        sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 50);
-        str = "(e+, d-): General: Light threshold = " + Algorithms::typeToStr<int>(parameters.lightThreshold);
-        sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 75);
-        str = "(r+, f-): Line detection: Intersection threshold = " + Algorithms::typeToStr<int>(parameters.interThreshold);
-        sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 100);
-        str = "(t+, g-): Line detection: Min line length = " + Algorithms::typeToStr<int>(parameters.minLineLength);
-        sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 125);
-        str = "(z+, h-): Line detection: Max line gap = " + Algorithms::typeToStr<int>(parameters.maxLineGap);
-        sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 150);
-        str = "(u+, j-): Blurring: Blur size = " + Algorithms::typeToStr<int>(parameters.blursize);
-        sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 175);
-        str = "(i+, k-): Edge Detection: Upper threshold = " + Algorithms::typeToStr<int>(parameters.upperThreshold);
-        sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 200);
-        str = "(o+, l-): Edge Detection: Lower threshold = " + Algorithms::typeToStr<int>(parameters.lowerThreshold);
-        sdl::auxiliary::Utilities::renderText(str, font, textColor, renderer, 25, 225);
+        std::string str = "FPS: " +  algorithms::typeToStr<int>(1000.0f * frame / worldtime.getTicks());
+        sdl::auxiliary::utilities::renderText(str, font, textColor, renderer, 25, 25);
+        str = "(w+, s-): General: fill shorts = " + algorithms::typeToStr<int>(parameters.fillShortBlanks);
+        sdl::auxiliary::utilities::renderText(str, font, textColor, renderer, 25, 50);
+        str = "(e+, d-): General: Light threshold = " + algorithms::typeToStr<int>(parameters.lightThreshold);
+        sdl::auxiliary::utilities::renderText(str, font, textColor, renderer, 25, 75);
+        str = "(r+, f-): Line detection: Intersection threshold = " + algorithms::typeToStr<int>(parameters.interThreshold);
+        sdl::auxiliary::utilities::renderText(str, font, textColor, renderer, 25, 100);
+        str = "(t+, g-): Line detection: Min line length = " + algorithms::typeToStr<int>(parameters.minLineLength);
+        sdl::auxiliary::utilities::renderText(str, font, textColor, renderer, 25, 125);
+        str = "(z+, h-): Line detection: Max line gap = " + algorithms::typeToStr<int>(parameters.maxLineGap);
+        sdl::auxiliary::utilities::renderText(str, font, textColor, renderer, 25, 150);
+        str = "(u+, j-): Blurring: Blur size = " + algorithms::typeToStr<int>(parameters.blursize);
+        sdl::auxiliary::utilities::renderText(str, font, textColor, renderer, 25, 175);
+        str = "(i+, k-): Edge Detection: Upper threshold = " + algorithms::typeToStr<int>(parameters.upperThreshold);
+        sdl::auxiliary::utilities::renderText(str, font, textColor, renderer, 25, 200);
+        str = "(o+, l-): Edge Detection: Lower threshold = " + algorithms::typeToStr<int>(parameters.lowerThreshold);
+        sdl::auxiliary::utilities::renderText(str, font, textColor, renderer, 25, 225);
 
        // FPS
         if (worldtime.getTicks() > 1000 ) {
@@ -925,7 +925,7 @@ int main(int argc, char* argv[]) {
 #endif
 
     // Destroy the various items
-    sdl::auxiliary::Utilities::cleanup(renderer, window, texture);
+    sdl::auxiliary::utilities::cleanup(renderer, window, texture);
     TTF_CloseFont(font);
     SDL_Quit();
 

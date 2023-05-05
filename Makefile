@@ -88,11 +88,11 @@ LDFLAGS_U += -L$(LIBGTEST) -lgtest
 
 ########################################################################
 ## BUILD Files
-BUILD = Main.a Renderer.a Algorithms.a Sort.a Collision.a Object.a Solver.a 
+BUILD = main.a renderer.a algorithms.a sort.a collision.a object.a solver.a 
 
 ## BUILD files for unittests
-BUILD_U = Renderer.a Algorithms.a Sort.a Collision.a Object.a Solver.a
-BUILD_U += UnitTests.a gtest.a
+BUILD_U = renderer.a algorithms.a sort.a collision.a object.a solver.a
+BUILD_U += unitTests.a gtest.a
 
 
 ########################################################################
