@@ -4,9 +4,6 @@
 [submodule "SDLTools"]
 	path = SDLTools
 	url = git@github.com:MKesenheimer/SDLTools.git
-[submodule "libs/googletest"]
-	path = libs/googletest
-	url = https://github.com/google/googletest.git
 [submodule "libs/lumax"]
 	path = libs/lumax
 	url = https://github.com/MKesenheimer/lumax.git
