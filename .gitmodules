@@ -11,3 +11,6 @@
 	path = libs/lumax
 	url = https://github.com/MKesenheimer/lumax.git
         branch = ftdi-driver
+[submodule "libs/eigen"]
+	path = libs/eigen
+	url = https://gitlab.com/libeigen/eigen.git
