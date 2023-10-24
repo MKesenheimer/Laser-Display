@@ -13,3 +13,4 @@
 [submodule "libs/lumax"]
 	path = libs/lumax
 	url = https://github.com/MKesenheimer/lumax.git
+	branch = ftdi-driver
