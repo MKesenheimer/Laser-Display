@@ -5,14 +5,15 @@
 .PHONY: all libs clean clean-libs
 .DEFAULT_GOAL := laser-display
 
-COMPILER = g++
+#COMPILER = /opt/local/bin/g++
+COMPILER = /usr/bin/g++
 
 ########################################################################
 ## Flags
-FLAGS   = -g -std=c++17 -D LUMAX_OUTPUT
-#FLAGS   = -g -std=c++17
+FLAGS   = -g -std=c++17 -DLUMAX_OUTPUT
+#FLAGS   = -g -std=c++17 -stdlib=libstdc++
 ## find shared libraries during runtime: set rpath:
-LDFLAGS = -rpath @executable_path/libs
+LDFLAGS = -rpath @executable_path/libs -Wl,-ld_classic
 PREPRO  =
 ##verbose level 1
 #DEBUG   = -D DEBUGV1
@@ -34,7 +35,7 @@ SYSTEMINC  = /opt/local/include
 LIBS       = $(WORKINGDIR)/libs
 EIGEN      = $(LIBS)/eigen
 GTEST      = $(LIBS)/googletest
-LIBLUMAX   = $(LIBS)/lumax/libs
+LIBLUMAX   = $(LIBS)/lumax
 LIBGTEST   = $(LIBS)/googletest/build/lib
 
 ########################################################################
@@ -65,7 +66,7 @@ LDFLAGS += $(shell pkg-config --libs opencv4)
 
 ### Lumax
 # TODO: make this OS dependent
-LDFLAGS += -L$(LIBLUMAX) -llumax_darwin 
+LDFLAGS += -L$(LIBLUMAX)/libs -llumax_darwin 
 
 ### libconfig
 LDFLAGS += -lconfig++
@@ -106,12 +107,16 @@ laser-display: $(BUILD)
 gtest: $(BUILD_U)
 	$(CXX) $(patsubst %,build/%,$(BUILD_U)) $(LDFLAGS_U) -o $@
 
+# googletest
+# cmake -DBUILD_SHARED_LIBS=ON -DCMAKE_C_COMPILER=/opt/local/bin/gcc -DCMAKE_CXX_COMPILER=/opt/local/bin/g++ .. && make
+# cmake -DBUILD_SHARED_LIBS=ON .. && make
+# TODO: make this OS dependent (make.sh macOS):
 libs:
 	cd $(GTEST) && mkdir -p $(GTEST)/build && cd $(GTEST)/build && \
 	cmake -DBUILD_SHARED_LIBS=ON .. && make
 	cp $(LIBGTEST)/* $(LIBS)
-	cd $(LIBLUMAX) && ./make.sh
-	cp $(LIBLUMAX)/*.dylib $(LIBS)
+	cd $(LIBLUMAX) && ./make.sh macOS
+	cp $(LIBLUMAX)/libs/*.dylib $(LIBS)
 
 clean-all: clean clean-libs
 
@@ -120,7 +125,7 @@ clean:
 
 clean-libs:
 	cd $(GTEST) && rm -rf build 
-	cd $(LIBLUMAX) && rm -f *.dylib *.so
+	cd $(LIBLUMAX)/libs && rm -f *.dylib *.so
 	rm -f $(LIBS)/*.dylib $(LIBS)/*.so
 
 do:

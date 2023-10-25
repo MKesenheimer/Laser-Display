@@ -5,7 +5,7 @@ Program to display images and movies with a show laser device using openCV
 ### Requirements
 The SDL library must be present. On a mac, the SDL library can be installed with the following command:
 ```
-sudo port install libsdl2 libsdl2_gfx libsdl2_image libsdl2_mixer libsdl2_ttf libftd2xx libconfig-hr
+sudo port install libsdl2 libsdl2_gfx libsdl2_image libsdl2_mixer libsdl2_ttf libftd2xx libftdi1 libconfig-hr
 ```
 ### Cloning the source code
 ```
