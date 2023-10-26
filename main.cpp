@@ -565,7 +565,7 @@ int getLumaxParameters(const libconfig::Config& config, renderer::lumaxParameter
 
 int main(int argc, char* argv[]) {
     Parameters parameters;
-    int ret = getParameters(argc, argv, parameters);
+    getParameters(argc, argv, parameters);
 
 #ifdef LUMAX_OUTPUT
     // open Lumax device
@@ -584,7 +584,7 @@ int main(int argc, char* argv[]) {
 
     // declare the lumax renderer
     renderer::lumaxRenderer lumaxRenderer;
-    ret = getLumaxParameters(parameters.config, lumaxRenderer.parameters);
+    getLumaxParameters(parameters.config, lumaxRenderer.parameters);
 #endif
 
     // take records of frame number
@@ -922,6 +922,7 @@ int main(int argc, char* argv[]) {
 
 #ifdef LUMAX_OUTPUT
     Lumax_StopFrame(lumaxHandle);
+    Lumax_CloseDevice(lumaxHandle);
 #endif
 
     // Destroy the various items
