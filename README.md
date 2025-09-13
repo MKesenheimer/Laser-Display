@@ -7,6 +7,12 @@ The SDL library must be present. On a mac, the SDL library can be installed with
 ```
 sudo port install libsdl2 libsdl2_gfx libsdl2_image libsdl2_mixer libsdl2_ttf libftd2xx libftdi1 libconfig-hr
 ```
+
+Alternatively with homebrew:
+```
+brew install libconfig sdl2_ttf sdl2 sdl2_gfx sdl2_image
+```
+
 ### Cloning the source code
 ```
 git clone --recurse-submodules https://github.com/MKesenheimer/Laser-Display.git
